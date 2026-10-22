@@ -1,0 +1,2347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codex Relay</title>
+<style>
+  /* ── 天蓝色系调色板 ──────────────────────────────────────────────
+   * 浅色是主态（天蓝的清爽感），深色跟随系统。
+   * 所有颜色都从这组变量取，换肤只改这里。
+   */
+  :root {
+    --sky-50:  #f2f9ff;
+    --sky-100: #e3f2fe;
+    --sky-200: #c6e6fd;
+    --sky-300: #96d3fb;
+    --sky-400: #55bcf6;
+    --sky-500: #1ba2e8;
+    --sky-600: #0a84c8;
+    --sky-700: #0a6a9f;
+
+    --bg:        #f4fafe;
+    --bg-glow:   #dcefff;
+    --surface:   #ffffff;
+    --surface-2: #f6fbfe;
+    --border:    #d3e8f7;
+    --border-strong: #b6d9f0;
+    --text:      #0d2b40;
+    --text-2:    #35566e;
+    --muted:     #6b8ba3;
+    --accent:    var(--sky-500);
+    --accent-strong: var(--sky-600);
+    --accent-soft: var(--sky-100);
+
+    --ok:   #15935b;
+    --ok-bg: #e3f7ee;
+    --warn: #b9760a;
+    --warn-bg: #fdf3e0;
+    --err:  #d64545;
+    --err-bg: #fdeaea;
+
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 1px 2px rgba(13, 43, 64, .04), 0 6px 20px -12px rgba(13, 43, 64, .18);
+    --shadow-lg: 0 2px 6px rgba(13, 43, 64, .05), 0 18px 40px -24px rgba(13, 43, 64, .35);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:        #08141f;
+      --bg-glow:   #0d2637;
+      --surface:   #0e1f2d;
+      --surface-2: #122839;
+      --border:    #1b3a50;
+      --border-strong: #26506d;
+      --text:      #e6f4fd;
+      --text-2:    #b3cfe2;
+      --muted:     #7ea3bd;
+      --accent:    var(--sky-400);
+      --accent-strong: var(--sky-300);
+      --accent-soft: #12354b;
+
+      --ok:   #4ade80;
+      --ok-bg: #0f2f22;
+      --warn: #fbbf24;
+      --warn-bg: #33280d;
+      --err:  #f87171;
+      --err-bg: #3a1a1c;
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -14px rgba(0, 0, 0, .8);
+      --shadow-lg: 0 2px 8px rgba(0, 0, 0, .5), 0 20px 44px -26px rgba(0, 0, 0, .9);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 620px at 88% -12%, var(--bg-glow) 0%, transparent 62%),
+      radial-gradient(760px 480px at -8% 104%, var(--bg-glow) 0%, transparent 58%),
+      var(--bg);
+    color: var(--text);
+    font: 14px/1.62 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── 整体骨架：侧边栏 + 主区 ─────────────────────────────────── */
+  .app {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  /* ── 侧边栏 ──────────────────────────────────────────────────── */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding: 22px 14px 16px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .brand { display: flex; align-items: center; gap: 11px; padding: 0 8px; }
+  .brand-mark {
+    width: 36px; height: 36px; flex: none;
+    display: grid; place-items: center;
+    border-radius: 11px;
+    background: linear-gradient(145deg, var(--sky-400), var(--sky-600));
+    color: #fff; font-weight: 700; font-size: 13px; letter-spacing: .4px;
+    box-shadow: 0 6px 16px -8px var(--sky-500);
+  }
+  .brand-text { min-width: 0; }
+  .brand-text strong {
+    display: block; font-size: 13.5px; font-weight: 650; letter-spacing: .1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .brand-text span { font-size: 11.5px; color: var(--muted); }
+
+  nav { display: flex; flex-direction: column; gap: 3px; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 9px 11px;
+    border: none; border-radius: var(--radius-sm);
+    background: transparent; color: var(--text-2);
+    font: inherit; font-size: 13.5px; text-align: left;
+    cursor: pointer;
+    transition: background .14s ease, color .14s ease;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: none; opacity: .75; }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item.active {
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    font-weight: 600;
+  }
+  .nav-item.active svg { opacity: 1; }
+
+  .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+
+  .status {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 11px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex: none;
+    background: var(--muted);
+    box-shadow: 0 0 0 3px transparent;
+    transition: background .2s, box-shadow .2s;
+  }
+  .dot.on { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+  .dot.off { background: var(--err); box-shadow: 0 0 0 3px var(--err-bg); }
+
+  .addr {
+    padding: 0 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  /* ── 主区 ────────────────────────────────────────────────────── */
+  main {
+    padding: 30px 34px 64px;
+    max-width: 1080px;
+    width: 100%;
+  }
+
+  .page-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 18px; flex-wrap: wrap;
+    margin-bottom: 22px;
+  }
+  .page-head h1 {
+    margin: 0 0 5px;
+    font-size: 21px; font-weight: 670; letter-spacing: -.2px;
+  }
+  .page-head p { margin: 0; color: var(--muted); font-size: 13px; }
+  .page-head .actions { display: flex; gap: 8px; align-items: center; }
+
+  /* ── 卡片 ────────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 14px;
+  }
+  .card-head h2 { margin: 0; font-size: 14px; font-weight: 640; }
+  .card-head .hint { color: var(--muted); font-size: 12.5px; }
+
+  /* ── 指标卡 ──────────────────────────────────────────────────── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 15px 16px 13px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .stat::before {
+    content: "";
+    position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, var(--sky-400), var(--sky-600));
+    opacity: .9;
+  }
+  .stat .n {
+    font-size: 26px; font-weight: 680; line-height: 1.15;
+    letter-spacing: -.6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .l { margin-top: 2px; color: var(--muted); font-size: 12px; }
+
+  /* ── 渠道标签 ────────────────────────────────────────────────── */
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip {
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    color: var(--accent-strong);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+
+  /* ── 表格 ────────────────────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; vertical-align: middle; }
+  thead th {
+    color: var(--muted);
+    font-size: 11.5px; font-weight: 560;
+    text-transform: uppercase; letter-spacing: .5px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td { border-bottom: 1px solid var(--border); font-size: 13px; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-2); }
+  td.actions { white-space: nowrap; }
+  td.actions .btn-ghost + .btn-ghost { margin-left: 6px; }
+
+  /* ── 按钮 ────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 15px;
+    border: 1px solid transparent; border-radius: var(--radius-sm);
+    background: linear-gradient(180deg, var(--sky-400), var(--sky-600));
+    color: #fff;
+    font: inherit; font-size: 13px; font-weight: 560;
+    cursor: pointer;
+    box-shadow: 0 6px 16px -10px var(--sky-600);
+    transition: filter .15s ease, transform .06s ease;
+  }
+  .btn:hover { filter: brightness(1.06); }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; filter: none; }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 11px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-2);
+    font: inherit; font-size: 12.5px;
+    cursor: pointer;
+    transition: border-color .14s, color .14s, background .14s;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent-strong); background: var(--surface-2); }
+  .btn-ghost.danger:hover { border-color: var(--err); color: var(--err); background: var(--err-bg); }
+
+  /* ── 表单控件 ────────────────────────────────────────────────── */
+  select, input[type="search"], input[type="text"] {
+    font: inherit; font-size: 13px;
+    padding: 8px 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    transition: border-color .14s, box-shadow .14s;
+  }
+  select:focus, input:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    /* ⚠️ 必须清掉 UA 的默认焦点环 —— 它是琥珀色 `outline: auto`，
+       叠在我们自己的蓝色边框上会变成一圈很奇怪的双色框。
+       可见焦点由上面的 box-shadow 承担，所以无障碍不受影响。 */
+    outline: none;
+  }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .toolbar .grow { flex: 1; min-width: 180px; max-width: 340px; }
+
+  /* ── 状态徽章 ────────────────────────────────────────────────── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2.5px 9px;
+    border-radius: 999px;
+    font-size: 11.5px; font-weight: 560;
+    white-space: nowrap;
+  }
+  .pill.on   { background: var(--ok-bg);   color: var(--ok); }
+  .pill.off  { background: var(--err-bg);  color: var(--err); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+
+  /* ── 代码块 ──────────────────────────────────────────────────── */
+  .code {
+    position: relative;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--text-2);
+    white-space: pre;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+
+  /* ── 快速开始 ────────────────────────────────────────────────── */
+  .steps { display: flex; flex-direction: column; gap: 2px; }
+  .step {
+    display: flex; align-items: center; gap: 13px;
+    padding: 12px 2px;
+    border-bottom: 1px solid var(--border);
+  }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    width: 26px; height: 26px; flex: none;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    font-size: 12px; font-weight: 640;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    border: 1px solid var(--border-strong);
+  }
+  .step.done .step-num {
+    background: var(--ok-bg); color: var(--ok); border-color: transparent;
+  }
+  .step-body { flex: 1; min-width: 0; }
+  .step-title { font-size: 13.5px; font-weight: 560; }
+  .step.done .step-title { color: var(--muted); }
+  .step-desc { color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+
+  /* ── 空态 ────────────────────────────────────────────────────── */
+  .empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.9;
+  }
+  .empty .empty-title { display: block; font-size: 14px; color: var(--text-2); margin-bottom: 3px; }
+
+  /* ── 设置列表 ────────────────────────────────────────────────── */
+  .kv { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 0; }
+  .kv > div {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    min-width: 0;
+  }
+  .kv > div:nth-last-child(-n+2) { border-bottom: none; }
+  .kv .k { color: var(--muted); }
+  .kv .v { overflow-wrap: anywhere; }
+
+  /* ── 对话框 ──────────────────────────────────────────────────── */
+  dialog.sheet {
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    padding: 24px 26px;
+    max-width: 430px;
+    width: calc(100vw - 48px);
+    box-shadow: var(--shadow-lg);
+  }
+  dialog.sheet::backdrop { background: rgba(8, 26, 40, .42); }
+  dialog.sheet h2 { margin: 0 0 6px; font-size: 16px; }
+  dialog.sheet > form > p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+  dialog.sheet input, dialog.sheet textarea {
+    width: 100%;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+  }
+  dialog.sheet textarea {
+    font: inherit; font-size: 12.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 9px 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    resize: vertical;
+  }
+  dialog.sheet textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  dialog.sheet .dialog-actions {
+    display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 18px;
+  }
+  dialog#providerDialog { max-width: 560px; }
+
+  /* ── 表单字段 ────────────────────────────────────────────────── */
+  .field { margin-bottom: 14px; }
+  .field > label {
+    display: block; margin-bottom: 5px;
+    font-size: 12.5px; color: var(--text-2); font-weight: 550;
+  }
+  .field .hint { display: block; margin-top: 5px; font-size: 12px; color: var(--muted); }
+
+  /* ── 开关 ────────────────────────────────────────────────────── */
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text-2); }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch .track {
+    width: 38px; height: 22px; flex: none;
+    border-radius: 999px;
+    background: var(--border-strong);
+    position: relative;
+    transition: background .18s ease;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; top: 3px; left: 3px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(13,43,64,.28);
+    transition: transform .18s ease;
+  }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(16px); }
+  .switch input:focus-visible + .track { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  /* ── 供应商卡片 ──────────────────────────────────────────────── */
+  .profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+    gap: 12px;
+  }
+  .profile-card {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    padding: 14px 15px 12px;
+    display: flex; flex-direction: column; gap: 8px;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  .profile-card:hover { border-color: var(--border-strong); }
+  .profile-card.active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent) inset;
+  }
+  .profile-card .pc-head { display: flex; align-items: center; gap: 8px; }
+  .profile-card .pc-name { font-weight: 620; font-size: 14px; }
+  .profile-card .pc-url {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .profile-card .pc-meta { display: flex; gap: 10px; font-size: 11.5px; color: var(--muted); }
+  .profile-card .pc-actions { display: flex; gap: 6px; margin-top: 2px; }
+
+  /* ── 设备码 ──────────────────────────────────────────────────── */
+  .device-code {
+    margin: 4px 0 2px;
+    padding: 16px 18px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    border: 1px dashed var(--border-strong);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 26px;
+    font-weight: 650;
+    letter-spacing: 3px;
+    text-align: center;
+    color: var(--accent-strong);
+    user-select: all;
+  }
+
+  /* ── provider 行 ─────────────────────────────────────────────── */
+  .provider-name { font-weight: 550; }
+  .provider-sub { color: var(--muted); font-size: 12px; margin-top: 1px; }
+
+  /* ── Toast ───────────────────────────────────────────────────── */
+  .toast {
+    position: fixed; left: 50%; bottom: 26px;
+    transform: translate(-50%, 10px);
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: var(--text);
+    color: var(--surface);
+    font-size: 13px;
+    box-shadow: var(--shadow-lg);
+    opacity: 0; pointer-events: none;
+    transition: opacity .22s ease, transform .22s ease;
+    z-index: 100;
+    max-width: min(560px, 84vw);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { background: var(--err); color: #fff; }
+
+  /* ── 响应式：窄窗口把侧栏压到顶部 ─────────────────────────────── */
+  @media (max-width: 820px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar {
+      position: static; height: auto;
+      flex-direction: row; align-items: center; flex-wrap: wrap;
+      gap: 14px; padding: 14px 16px;
+      border-right: none; border-bottom: 1px solid var(--border);
+    }
+    nav { flex-direction: row; flex-wrap: wrap; gap: 2px; }
+    /* ⚠️ 竖排时 `.nav-item` 要 width:100% 填满侧栏；
+       横排时必须收回 auto，否则每项仍占满一整行、看起来像竖排。 */
+    .nav-item { width: auto; padding: 7px 10px; font-size: 13px; }
+    .nav-item svg { display: none; }
+    .sidebar-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; }
+    .addr { display: none; }
+    main { padding: 22px 18px 52px; }
+  }
+
+  [hidden] { display: none !important; }
+</style>
+<link rel="stylesheet" href="/app/theme.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">CR</div>
+      <div class="brand-text">
+        <strong>Codex Relay</strong>
+        <span>多渠道聚合网关</span>
+      </div>
+    </div>
+
+    <nav>
+      <button class="nav-item active" data-tab="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/>
+        </svg>
+        总览
+      </button>
+      <button class="nav-item" data-tab="accounts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.2c.9-3.6 3.9-5.6 7.5-5.6s6.6 2 7.5 5.6"/>
+        </svg>
+        账号
+      </button>
+      <button class="nav-item" data-tab="models">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l8.5 4.6v8.8L12 21l-8.5-4.6V7.6z"/><path d="M12 12l8.5-4.4M12 12v9M12 12L3.5 7.6"/>
+        </svg>
+        模型
+      </button>
+      <button class="nav-item" data-tab="aggregate">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8.5" cy="8.5" r="4.2"/><path d="M11.6 11.6L20 20M17 15l2.2-2.2M14.4 17.6l2.2-2.2"/>
+        </svg>
+        自备 Key
+      </button>
+      <button class="nav-item" data-tab="setup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="15" rx="2.4"/><path d="M7 9.5l3 2.6-3 2.6M12.5 15h4.5"/>
+        </svg>
+        接入 Codex
+      </button>
+      <button class="nav-item" data-tab="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3.2"/>
+          <path d="M19.4 14.6a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z"/>
+        </svg>
+        设置
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="status">
+        <span class="dot" id="dot"></span>
+        <span id="statusText">连接中…</span>
+      </div>
+      <div class="addr" id="addr">—</div>
+    </div>
+  </aside>
+
+  <main>
+    <!-- 总览 -->
+    <section id="tab-overview">
+      <div class="page-head">
+        <div>
+          <h1>总览</h1>
+          <p>本地聚合网关的运行状态</p>
+        </div>
+        <div class="actions">
+          <button class="btn-ghost" id="refreshBtn">刷新</button>
+        </div>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="overview-grid">
+        <div class="card">
+          <div class="card-head">
+            <h2>可用渠道</h2>
+            <span class="hint" id="channelHint"></span>
+          </div>
+          <div class="chips" id="channels"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>快速开始</h2>
+            <span class="hint">三步接入 Codex</span>
+          </div>
+          <div class="steps" id="steps"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 账号 -->
+    <section id="tab-accounts" hidden>
+      <div class="page-head">
+        <div>
+          <h1>账号</h1>
+          <p>选择渠道并添加账号。登录会打开浏览器，完成授权后自动保存。</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <select id="providerSelect" aria-label="渠道"></select>
+          <button class="btn" id="addAccountBtn">添加账号</button>
+          <span class="hint" id="accountHint"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>已登录账号</h2>
+          <span class="hint" id="accountCount"></span>
+        </div>
+        <div class="table-wrap" id="accountList"></div>
+      </div>
+    </section>
+
+    <!-- 模型 -->
+    <section id="tab-models" hidden>
+      <div class="page-head">
+        <div>
+          <h1>模型</h1>
+          <p>所有车道合并后的模型目录</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar" style="margin-bottom:14px">
+          <input id="modelSearch" type="search" class="grow" placeholder="过滤模型…" aria-label="过滤模型">
+          <span class="hint" id="modelCount"></span>
+        </div>
+        <div class="table-wrap" id="modelList"></div>
+      </div>
+    </section>
+
+    <!-- 自备 Key -->
+    <section id="tab-aggregate" hidden>
+      <div class="page-head">
+        <div>
+          <h1>自备 Key</h1>
+          <p>接入任意 OpenAI 兼容 / Anthropic 兼容端点。Key 只保存在本机。</p>
+        </div>
+        <div class="actions">
+          <label class="switch">
+            <input type="checkbox" id="aggregateEnabled">
+            <span class="track"></span>
+            <span>启用聚合车道</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar" style="margin-bottom:14px">
+          <input id="providerSearch" type="search" class="grow" placeholder="搜索 provider…" aria-label="搜索 provider">
+          <select id="providerFilter" aria-label="过滤">
+            <option value="all">全部</option>
+            <option value="configured">已配置</option>
+            <option value="unconfigured">未配置</option>
+          </select>
+          <span class="hint" id="providerCount"></span>
+          <button class="btn" id="addCustomProviderBtn">添加自定义厂商</button>
+        </div>
+        <div class="table-wrap" id="providerList"></div>
+      </div>
+    </section>
+
+    <!-- 接入 -->
+    <section id="tab-setup" hidden>
+      <div class="page-head">
+        <div>
+          <h1>接入 Codex</h1>
+          <p>一键把 Codex 指向本机网关，随时可还原。</p>
+        </div>
+        <div class="actions" id="codexActions"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>当前状态</h2>
+          <span class="hint" id="codexBadge"></span>
+        </div>
+        <div class="kv" id="codexStatus"></div>
+        <p class="hint" style="margin:14px 0 0">
+          只改 <code>config.toml</code>，<code>auth.json</code> 一个字节都不会动 ——
+          官方登录态、App 的远程操作与官方插件都保留。
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>供应商</h2>
+          <button class="btn" id="addProfileBtn">添加供应商</button>
+        </div>
+        <div class="profile-grid" id="codexProfiles"></div>
+        <p class="hint" style="margin:14px 0 0">
+          每张卡是一份<strong>直连</strong>配置：切换后 Codex 直接连那一家，不经过本机网关。
+          想让流量走网关（自动故障转移），就切到「本机网关」那张卡。
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Codex 账号</h2>
+          <div class="row">
+            <button class="btn-ghost" id="captureAuthBtn">记录当前登录</button>
+            <button class="btn" id="addCodexAccountBtn">添加账号</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="codexAccounts"></div>
+        <p class="hint" style="margin:12px 0 0">
+          「添加账号」走 OpenAI 官方的设备码登录（与 Codex 自己同一套流程）。
+          切换会写入 <code>auth.json</code> 并备份原文件；<b>切换后需重启 Codex 后台服务</b>才会读到新账号。
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>历史会话</h2>
+          <span class="hint" id="codexThreadsHint"></span>
+        </div>
+        <div class="chips" id="codexThreads"></div>
+        <p class="hint" style="margin:12px 0 0">
+          ⚠️ 每个会话都记着自己创建时的 provider —— 打开旧会话时 Codex 用它，而不是 config.toml。
+          所以切了供应商之后，旧会话仍会去打老地址。点下面按钮可以把它们迁到当前供应商。
+        </p>
+        <div class="row" style="margin-top:10px">
+          <button class="btn-ghost" id="migrateThreadsBtn">让历史会话跟随当前供应商</button>
+          <span class="hint" id="migrateThreadsHint"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>手动配置</h2>
+          <button class="btn-ghost" id="copyRecipeBtn">复制</button>
+        </div>
+        <details>
+          <summary class="hint" style="cursor:pointer">不想让 app 改你的文件？手动粘贴这段</summary>
+          <div class="code" id="recipe" style="margin-top:12px">加载中…</div>
+          <div class="row" style="margin-top:10px">
+            <span class="hint">或者用环境变量：</span>
+            <code id="envRecipe">—</code>
+            <button class="btn-ghost" id="copyEnvBtn">复制</button>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section id="tab-settings" hidden>
+      <div class="page-head">
+        <div>
+          <h1>设置</h1>
+          <p>数据目录、网关地址与端口</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="kv" id="settingsBody"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="keyDialog" class="sheet">
+  <form method="dialog">
+    <h2>输入 API Key</h2>
+    <p>网关启动时会打印一串 <code>ofm-…</code> 开头的密钥，把它贴到下面。</p>
+    <input id="keyInput" type="password" autocomplete="off" spellcheck="false" placeholder="ofm-…" aria-label="API Key">
+    <div class="dialog-actions">
+      <button class="btn-ghost" value="cancel">取消</button>
+      <button class="btn" value="ok">确定</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="providerDialog" class="sheet">
+  <form id="providerForm" onsubmit="return false">
+    <h2 id="providerTitle">配置 provider</h2>
+    <p id="providerMeta"></p>
+
+    <div class="field" id="providerIdField" hidden>
+      <label for="providerId">厂商 ID</label>
+      <input id="providerId" type="text" spellcheck="false" autocomplete="off" placeholder="demo">
+      <span class="hint">只能用小写字母、数字、- 和 _；会拼成模型 ID，如 <code>demo/gpt-4o</code></span>
+    </div>
+
+    <div class="field" id="providerFormatField" hidden>
+      <label for="providerFormat">协议</label>
+      <select id="providerFormat">
+        <option value="openai-chat">OpenAI Chat Completions</option>
+        <option value="openai-responses">OpenAI Responses</option>
+        <option value="anthropic-messages">Anthropic Messages</option>
+      </select>
+      <span class="hint">按厂商文档选；选错了会 404 或 400。</span>
+    </div>
+
+    <div class="field">
+      <label for="providerBaseUrl">Base URL</label>
+      <input id="providerBaseUrl" type="text" spellcheck="false" autocomplete="off">
+      <span class="hint">留空则用内置默认值；自建代理时填自己的地址。</span>
+    </div>
+
+    <div class="field">
+      <label for="providerKey">API Key</label>
+      <input id="providerKey" type="password" spellcheck="false" autocomplete="off">
+      <span class="hint" id="providerKeyHint"></span>
+    </div>
+
+    <div class="field">
+      <label for="providerModels">模型 ID（每行一个）</label>
+      <textarea id="providerModels" rows="5" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button type="button" class="btn-ghost" id="discoverBtn">发现模型</button>
+        <span class="hint" id="discoverHint"></span>
+      </div>
+    </div>
+
+    <div class="dialog-actions">
+      <button type="button" class="btn-ghost" id="testBtn">测试连接</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn-ghost" id="removeProviderBtn">移除</button>
+      <button type="button" class="btn-ghost" id="cancelProviderBtn">取消</button>
+      <button type="button" class="btn" id="saveProviderBtn">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="profileDialog" class="sheet">
+  <form onsubmit="return false">
+    <h2 id="profileTitle">供应商</h2>
+    <p class="hint" id="profileHint">切换后 Codex 直连这家，不经过本机网关。</p>
+
+    <div class="field">
+      <label for="profileIdInput">供应商 ID（可留空）</label>
+      <input id="profileIdInput" type="text" spellcheck="false" autocomplete="off" placeholder="留空则按 Base URL 自动生成">
+      <span class="hint">内部标识，写进 <code>model_provider</code>。留空会自动推导（<code>api.deepseek.com</code> → <code>deepseek</code>）。</span>
+    </div>
+
+    <div class="field">
+      <label for="profileNameInput">显示名称</label>
+      <input id="profileNameInput" type="text" spellcheck="false" autocomplete="off" placeholder="DeepSeek">
+    </div>
+
+    <div class="field">
+      <label for="profileBaseUrlInput">Base URL</label>
+      <input id="profileBaseUrlInput" type="text" spellcheck="false" autocomplete="off" placeholder="https://api.deepseek.com/v1">
+    </div>
+
+    <div class="field">
+      <label for="profileWireInput">协议（wire_api）</label>
+      <select id="profileWireInput">
+        <option value="responses">responses</option>
+        <option value="chat">chat</option>
+      </select>
+      <span class="hint">OpenAI 原生 / 中转站多数是 responses；Chat Completions 兼容端点用 chat。</span>
+    </div>
+
+    <div class="field">
+      <label for="profileModelInput">默认模型</label>
+      <input id="profileModelInput" type="text" spellcheck="false" autocomplete="off" placeholder="deepseek-v4-pro">
+      <span class="hint">写进 config.toml 的 <code>model</code>；留空则沿用你原来的。</span>
+    </div>
+
+    <div class="field">
+      <label for="profileKeyInput">API Key</label>
+      <input id="profileKeyInput" type="password" spellcheck="false" autocomplete="off">
+      <span class="hint" id="profileKeyHint">只写进 config.toml 的 experimental_bearer_token，不碰 auth.json。</span>
+    </div>
+
+    <div class="dialog-actions">
+      <button type="button" class="btn-ghost" id="deleteProfileBtn" hidden>删除</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn-ghost" id="cancelProfileBtn">取消</button>
+      <button type="button" class="btn" id="saveProfileBtn">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="deviceDialog" class="sheet">
+  <form onsubmit="return false">
+    <h2>登录 ChatGPT 账号</h2>
+    <p>在浏览器打开验证页，输入下面这串码：</p>
+    <div class="device-code" id="deviceCode">—</div>
+    <div class="row" style="margin-top:14px">
+      <button type="button" class="btn" id="openDevicePageBtn">打开验证页</button>
+      <button type="button" class="btn-ghost" id="copyDeviceCodeBtn">复制码</button>
+    </div>
+    <p class="hint" id="deviceStatus" style="margin-top:14px">等待你在浏览器里确认…</p>
+    <div class="dialog-actions">
+      <button type="button" class="btn-ghost" id="cancelDeviceBtn">取消</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ── 状态 ─────────────────────────────────────────────────────────── */
+const state = {
+  summary: null,
+  accounts: [],
+  models: [],
+  recipe: '',
+  settings: null,
+  aggregate: { enabled: true, providers: [] },
+  codex: null,
+  editing: null,
+  editingCustom: false,
+  loaded: false,
+  error: null,
+  busy: false,
+};
+
+/* ── API Key ──────────────────────────────────────────────────────
+ * Electron 壳通过 preload 注入 window.ofm.apiKey（只读）；
+ * 普通浏览器打开时用 localStorage 里存的；都没有则提示手输。
+ */
+let apiKey = (window.ofm?.apiKey) || localStorage.getItem('ofm.apiKey') || '';
+
+/* ── 小工具 ───────────────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function toast(message, isError = false) {
+  const el = $('toast');
+  el.textContent = message;
+  el.className = `toast show${isError ? ' err' : ''}`;
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.className = 'toast'; }, 3400);
+}
+
+function setStatus(kind, text) {
+  $('dot').className = `dot ${kind}`;
+  $('statusText').textContent = text;
+}
+
+/* ── API ──────────────────────────────────────────────────────────── */
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: {
+      'content-type': 'application/json',
+      ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  const text = await res.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+
+  if (!res.ok) {
+    const message = payload?.error?.message || `HTTP ${res.status}`;
+    if (res.status === 401) {
+      apiKey = '';
+      localStorage.removeItem('ofm.apiKey');
+    }
+    throw new Error(message);
+  }
+  return payload;
+}
+
+/* ── 加载 ─────────────────────────────────────────────────────────── */
+async function loadAll() {
+  const [summary, accounts, models, recipe, settings, aggregate, codex] = await Promise.all([
+    api('/api/summary'),
+    api('/api/accounts'),
+    api('/api/models'),
+    api('/api/recipe'),
+    api('/api/settings'),
+    api('/api/aggregate'),
+    api('/api/codex'),
+  ]);
+
+  state.summary = summary;
+  state.accounts = accounts.accounts ?? [];
+  state.models = models.models ?? [];
+  state.recipe = recipe.recipe ?? '';
+  state.settings = settings.settings ?? {};
+  state.aggregate = aggregate ?? { enabled: true, providers: [] };
+  state.codex = codex ?? null;
+  state.loaded = true;
+  state.error = null;
+
+  $('addr').textContent = summary.url ?? '';
+  renderAll();
+
+  // ⚠️ 启动竞态：Kilo 清单是一次网络请求，可能在页面加载之后才就绪。
+  // 那次 `/api/models` 会返回空数组，而统计卡（来自 summary）稍后却是 17 ——
+  // 两个数字对不上。这里对账，必要时补拉。
+  void reconcileModels();
+}
+
+/**
+ * 模型目录对账。
+ *
+ * 总览的 `summary.models` 是后端实时算的；`state.models` 是上一次拉取的快照。
+ * 两者不一致说明期间目录变了（Kilo 清单就绪、账号登录后渠道模型出现等），
+ * 补拉一次即可。
+ */
+let reconciling = false;
+async function reconcileModels() {
+  if (reconciling) return;
+  if (state.summary === null) return;
+
+  const expected = state.summary.models ?? 0;
+  if (expected === state.models.length) return;
+
+  reconciling = true;
+  try {
+    const models = await api('/api/models');
+    state.models = models.models ?? [];
+    renderModels();
+    // ⚠️ 接管页的模型下拉也依赖 state.models —— 只刷模型页会让下拉停在上一次的空列表，
+    // 于是「接管」时传了空 model，config.toml 的 model 行没被改。
+    renderCodex();
+  } catch {
+    // 补拉失败不致命：下一轮轮询还会试
+  } finally {
+    reconciling = false;
+  }
+}
+
+/** 轮询：刷新会变的东西（总览、账号状态），并给模型目录对账。 */
+async function pollLight() {
+  if (!apiKey || !state.loaded) return;
+  try {
+    const [summary, accounts] = await Promise.all([
+      api('/api/summary'),
+      api('/api/accounts'),
+    ]);
+    state.summary = summary;
+    state.accounts = accounts.accounts ?? [];
+    renderOverview();
+    renderSteps();
+    renderAccounts();
+    setStatus('on', '已连接');
+    void reconcileModels();
+  } catch {
+    setStatus('off', '连接中断');
+  }
+}
+
+async function bootstrap() {
+  const injected = window.ofm?.apiKey;
+  if (injected) {
+    apiKey = injected;
+    localStorage.setItem('ofm.apiKey', apiKey);
+  }
+
+  try {
+    await loadAll();
+    setStatus('on', '已连接');
+
+    // 首次启动时 Kilo 清单可能还没回来 —— 前几秒多对账几次，
+    // 不让用户盯着「0 个模型」等到下一轮 15 秒轮询。
+    if (state.models.length === 0) {
+      for (const delay of [1200, 3000, 6000]) {
+        setTimeout(() => { void reconcileModels(); }, delay);
+      }
+    }
+  } catch (error) {
+    setStatus('off', '未连接');
+    state.error = error.message;
+    renderAll();
+
+    // 鉴权失败才弹输入框；其它错误提示即可
+    if (/API Key|401|鉴权/i.test(error.message)) promptKey();
+    else toast(error.message, true);
+  }
+}
+
+/**
+ * 让用户输入 API Key。
+ *
+ * ⚠️ 用 `<dialog>` 而不是 `window.prompt` —— Electron 的渲染进程
+ * **不支持 prompt()**（调用只会打一条警告并返回 undefined），
+ * 在桌面版里会表现为「点了没反应」。
+ */
+function promptKey() {
+  const dialog = $('keyDialog');
+  const input = $('keyInput');
+  if (dialog === null || input === null) return;
+
+  input.value = '';
+  dialog.addEventListener('close', () => {
+    // 只有点了「确定」才采用 —— cancel / Esc 都会是别的 returnValue
+    if (dialog.returnValue !== 'ok') return;
+    const trimmed = input.value.trim();
+    if (trimmed === '') return;
+    apiKey = trimmed;
+    localStorage.setItem('ofm.apiKey', apiKey);
+    void bootstrap();
+  }, { once: true });
+
+  dialog.showModal();
+  input.focus();
+}
+
+/* ── 渲染 ─────────────────────────────────────────────────────────── */
+function renderAll() {
+  renderOverview();
+  renderSteps();
+  renderAccounts();
+  renderModels();
+  renderAggregate();
+  renderCodex();
+  renderSetup();
+  renderSettings();
+}
+
+function renderOverview() {
+  const s = state.summary;
+
+  // 统计卡
+  if (s === null) {
+    $('stats').innerHTML = state.error
+      ? '<div class="empty" style="grid-column:1/-1">无法读取状态</div>'
+      : '<div class="empty" style="grid-column:1/-1">加载中…</div>';
+  } else {
+    const items = [
+      { n: s.lanes?.channels?.length ?? 0, l: '账号渠道' },
+      { n: state.accounts.length, l: '已登录账号' },
+      { n: s.lanes?.kilo ?? 0, l: 'Kilo 模型' },
+      { n: s.lanes?.aggregate ?? 0, l: '自备 Key 模型' },
+      { n: s.models ?? 0, l: '模型总数' },
+    ];
+    $('stats').innerHTML = items
+      .map(it => `<div class="stat"><div class="n">${it.n}</div><div class="l">${it.l}</div></div>`)
+      .join('');
+  }
+
+  // 渠道 chips
+  const channels = s?.lanes?.channels ?? [];
+  $('channels').innerHTML = channels.length
+    ? channels.map(p => `<span class="chip">${escapeHtml(p)}</span>`).join('')
+    : '<span class="hint">暂无可用渠道</span>';
+  $('channelHint').textContent = channels.length ? `${channels.length} 个` : '';
+  $('accountHint').textContent = channels.length
+    ? `可选 ${channels.length} 个渠道`
+    : '请先刷新渠道列表';
+
+  // 渠道下拉
+  const select = $('providerSelect');
+  const wanted = channels.join('|');
+  if (select.dataset.signature !== wanted) {
+    select.innerHTML = channels
+      .map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`)
+      .join('');
+    select.dataset.signature = wanted;
+  }
+  select.disabled = channels.length === 0;
+}
+
+/**
+ * 渲染「快速开始」的三步。
+ *
+ * 状态由实际数据推断，不另存标志位 —— 这样刷新后不会出现
+ * 「页面说完成、但数据是空的」这种自相矛盾。
+ */
+function renderSteps() {
+  const box = $('steps');
+  if (box === null) return;
+
+  const hasAccount = state.accounts.length > 0;
+  const hasModel = state.models.length > 0;
+
+  const steps = [
+    {
+      done: hasAccount,
+      title: '登录渠道账号',
+      desc: hasAccount
+        ? `已登录 ${state.accounts.length} 个账号，可用该渠道的模型`
+        : '登录后可用 TRAE / Cline / Qoder 等渠道；不登录也能用 Kilo 免费池',
+      goto: 'accounts',
+      label: hasAccount ? '管理账号' : '去登录',
+    },
+    {
+      done: hasModel,
+      title: '确认可用模型',
+      desc: hasModel
+        ? `当前 ${state.models.length} 个模型可被 Codex 使用`
+        : '还没有可用模型 —— 先登录账号或等待 Kilo 清单就绪',
+      goto: 'models',
+      label: '查看模型',
+    },
+    {
+      done: false,
+      title: '接入 Codex CLI',
+      desc: '复制 config.toml 配方，Codex 即可连上本机网关',
+      goto: 'setup',
+      label: '去接入',
+    },
+  ];
+
+  box.innerHTML = steps.map((step, index) => `
+    <div class="step${step.done ? ' done' : ''}">
+      <div class="step-num">${step.done ? '✓' : index + 1}</div>
+      <div class="step-body">
+        <div class="step-title">${escapeHtml(step.title)}</div>
+        <div class="step-desc">${escapeHtml(step.desc)}</div>
+      </div>
+      <button class="btn-ghost" data-goto="${step.goto}">${escapeHtml(step.label)}</button>
+    </div>`).join('');
+}
+
+function renderAccounts() {
+  const box = $('accountList');
+
+  if (!state.loaded) {
+    box.innerHTML = '<div class="empty">加载中…</div>';
+    $('accountCount').textContent = '';
+    return;
+  }
+  if (state.accounts.length === 0) {
+    box.innerHTML = `<div class="empty">
+      <span class="empty-title">还没有登录任何账号</span>
+      在上方选择渠道，点「添加账号」开始登录。
+    </div>`;
+    $('accountCount').textContent = '0 个';
+    return;
+  }
+
+  $('accountCount').textContent = `${state.accounts.length} 个`;
+
+  box.innerHTML = `<table>
+    <thead><tr>
+      <th>账号</th><th>渠道</th><th>状态</th><th style="text-align:right">操作</th>
+    </tr></thead>
+    <tbody>${state.accounts.map(account => `
+      <tr>
+        <td>${escapeHtml(account.nickname)}</td>
+        <td><span class="pill" style="background:var(--surface-2);color:var(--text-2)">${escapeHtml(account.provider)}</span></td>
+        <td>${accountStatus(account)}</td>
+        <td class="actions" style="text-align:right">
+          <button class="btn-ghost" data-action="toggle" data-id="${escapeHtml(account.id)}" data-enabled="${account.enabled}">
+            ${account.enabled ? '停用' : '启用'}
+          </button>
+          <button class="btn-ghost" data-action="refresh" data-id="${escapeHtml(account.id)}">刷新</button>
+          <button class="btn-ghost danger" data-action="remove" data-id="${escapeHtml(account.id)}">删除</button>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function accountStatus(account) {
+  if (Array.isArray(account.rateLimited) && account.rateLimited.length > 0) {
+    const until = Math.min(...account.rateLimited.map(r => r.resetAt));
+    const mins = Math.max(1, Math.round((until - Date.now()) / 60000));
+    return `<span class="pill warn">限流 · ${mins} 分钟</span>`;
+  }
+  if (!account.enabled) return '<span class="pill off">已停用</span>';
+  if (account.expiresAt && account.expiresAt < Date.now()) return '<span class="pill warn">凭据过期</span>';
+  return '<span class="pill on">正常</span>';
+}
+
+function renderModels() {
+  const box = $('modelList');
+  const keyword = ($('modelSearch')?.value || '').trim().toLowerCase();
+
+  if (!state.loaded) {
+    $('modelCount').textContent = '';
+    box.innerHTML = '<div class="empty">加载中…</div>';
+    return;
+  }
+
+  const list = state.models.filter(m => String(m.id).toLowerCase().includes(keyword));
+  $('modelCount').textContent = `${list.length} / ${state.models.length}`;
+
+  if (list.length === 0) {
+    box.innerHTML = keyword
+      ? `<div class="empty">没有匹配「${escapeHtml(keyword)}」的模型</div>`
+      : `<div class="empty">
+          <span class="empty-title">还没有可用模型</span>
+          登录一个渠道账号，或配置自备 Key 的 provider。
+        </div>`;
+    return;
+  }
+
+  box.innerHTML = `<table>
+    <thead><tr><th>模型 ID</th><th>来源</th><th>上下文</th></tr></thead>
+    <tbody>${list.map(m => `
+      <tr>
+        <td><code>${escapeHtml(m.id)}</code></td>
+        <td><span class="pill" style="background:var(--accent-soft);color:var(--accent-strong)">${escapeHtml(m.owned_by || '—')}</span></td>
+        <td class="hint">${m.context_window ? m.context_window.toLocaleString() : '—'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+/**
+ * 渲染自备 Key 页。
+ *
+ * provider 目录有 75 条，默认只显示**已配置**的 + 搜索命中的，
+ * 否则一屏全是「未配置」，找不到想配的那家。
+ */
+function renderAggregate() {
+  const box = $('providerList');
+  const all = state.aggregate?.providers ?? [];
+
+  $('aggregateEnabled').checked = state.aggregate?.enabled !== false;
+
+  const keyword = ($('providerSearch').value || '').trim().toLowerCase();
+  const filter = $('providerFilter').value;
+
+  let list = all.filter(p => p.configurable !== false);
+  if (filter === 'configured') list = list.filter(p => p.setting !== null);
+  if (filter === 'unconfigured') list = list.filter(p => p.setting === null);
+  if (keyword !== '') {
+    list = list.filter(p =>
+      p.id.toLowerCase().includes(keyword) ||
+      String(p.name).toLowerCase().includes(keyword));
+  }
+
+  const configured = all.filter(p => p.setting !== null).length;
+  $('providerCount').textContent = `${list.length} / ${all.length} · 已配置 ${configured}`;
+
+  if (list.length === 0) {
+    box.innerHTML = keyword
+      ? `<div class="empty">没有匹配「${escapeHtml(keyword)}」的 provider</div>`
+      : `<div class="empty">
+          <span class="empty-title">还没有配置任何 provider</span>
+          把搜索框清空，选一家填上 API Key 即可。
+        </div>`;
+    return;
+  }
+
+  box.innerHTML = `<table>
+    <thead><tr>
+      <th>Provider</th><th>协议</th><th>模型</th><th>状态</th><th style="text-align:right">操作</th>
+    </tr></thead>
+    <tbody>${list.map(p => {
+      const modelCount = p.setting?.models?.length || p.setting?.discovered?.length || p.models.length;
+      const status = p.setting === null
+        ? '<span class="pill" style="background:var(--surface-2);color:var(--muted)">未配置</span>'
+        : p.setting.enabled
+          ? '<span class="pill on">已启用</span>'
+          : '<span class="pill off">已停用</span>';
+      return `<tr>
+        <td>
+          <div class="provider-name">${escapeHtml(p.name)}${p.custom ? ' <span class="pill" style="background:var(--accent-soft);color:var(--accent-strong)">自定义</span>' : ''}</div>
+          <div class="provider-sub">${escapeHtml(p.id)}${p.setting?.keyHint ? ' · ' + escapeHtml(p.setting.keyHint) : ''}</div>
+        </td>
+        <td class="hint">${escapeHtml(p.format)}</td>
+        <td class="hint"><span class="mobile-only">模型 </span>${modelCount}</td>
+        <td>${status}</td>
+        <td class="actions" style="text-align:right">
+          <button class="btn-ghost" data-provider="${escapeHtml(p.id)}">${p.setting === null ? '配置' : '编辑'}</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>`;
+}
+
+
+/**
+ * 渲染 Codex 接管页。
+ *
+ * 状态完全由后端 `getStatus()` 推断，不在前端另存一份布尔值 ——
+ * 这样用户手动改了 `config.toml` 之后刷新页面，界面不会撒谎。
+ */
+function renderCodex() {
+  const codex = state.codex;
+  if (codex === null) {
+    $('codexStatus').innerHTML = '<div class="k">状态</div><div class="v">加载中…</div>';
+    return;
+  }
+
+  // ⚠️ 用 managed（这个 app 写过配置）判断，而不是「当前 provider 是不是 ofm」——
+  // 切到第三方供应商后 currentProvider 会变，但依然是「已接管」。
+  $('codexBadge').innerHTML = codex.managed
+    ? '<span class="pill on">已接管</span>'
+    : '<span class="pill" style="background:var(--surface-2);color:var(--muted)">未接管</span>';
+
+  // 只有一个动作：还原到原始配置（切换靠下面的供应商卡片）
+  $('codexActions').innerHTML = codex.managed
+    ? '<button class="btn-ghost" data-codex="restore">还原原始配置</button>'
+    : '';
+
+  const authText = codex.auth?.exists === false
+    ? '<span class="pill warn">没有 auth.json</span>'
+    : codex.auth?.hasChatGPT
+      ? '<span class="pill on">官方登录已保留</span>'
+      : codex.auth?.hasApiKey
+        ? '<span class="pill on">API Key 登录</span>'
+        : '<span class="pill warn">未识别登录态</span>';
+
+  const activeProfile = (codex.profiles ?? []).find(profile => profile.active);
+  const rows = [
+    ['配置文件', codex.paths.configPath],
+    ['当前 provider', activeProfile === undefined
+      ? codex.currentProvider
+      : `${escapeHtml(activeProfile.name)} <span class="hint">(${escapeHtml(codex.currentProvider)})</span>`],
+    ['当前模型', codex.currentModel || '（未设置）'],
+    ['官方登录', authText],
+    ['接管备份', codex.backupAvailable
+      ? `有 · 撤销后回到 ${escapeHtml(codex.previousProvider ?? 'openai')}`
+      : '无'],
+  ];
+
+  if (codex.drifted) {
+    rows.push(['注意', '<span class="pill warn">接管后文件被改过，撤销将只摘除本网关的配置</span>']);
+  }
+
+  $('codexStatus').innerHTML = rows
+    .map(([k, v]) => `<div class="k">${escapeHtml(k)}</div><div class="v"><code>${v}</code></div>`)
+    .join('');
+
+  // 历史会话分布
+  const counts = codex.threadCounts ?? [];
+  const total = counts.reduce((sum, row) => sum + row.count, 0);
+  $('codexThreadsHint').textContent = counts.length === 0
+    ? '不可读'
+    : `共 ${total} 个会话`;
+  $('codexThreads').innerHTML = counts.length === 0
+    ? '<span class="hint">读不到 state_5.sqlite（或本机没有 sqlite3）</span>'
+    : counts.map(row => `<span class="chip">${escapeHtml(row.provider)} · ${row.count}</span>`).join('');
+
+  // 只有「已生效某个供应商」且确实有别的 provider 时才需要迁移
+  const activeId = activeProfile?.id ?? '';
+  const stale = counts.filter(row => row.provider !== activeId);
+  const migrateBtn = $('migrateThreadsBtn');
+  migrateBtn.disabled = activeId === '' || stale.length === 0;
+  $('migrateThreadsHint').textContent = activeId === ''
+    ? '先选一个供应商（点卡片上的「使用」）'
+    : stale.length === 0
+      ? '已经一致'
+      : `${stale.reduce((sum, row) => sum + row.count, 0)} 个会话指向其它 provider`;
+
+  migrateBtn.dataset.to = activeId;
+
+  renderCodexProfiles();
+  renderCodexAccounts();
+}
+
+
+/* ── 供应商档案（卡片 + 切换） ────────────────────────────────────── */
+let editingProfile = null;
+
+function renderCodexProfiles() {
+  const box = $('codexProfiles');
+  if (box === null) return;
+
+  const profiles = state.codex?.profiles ?? [];
+  box.innerHTML = profiles.map(profile => {
+    const key = profile.hasKey ? '<span class="pill" style="background:var(--surface);color:var(--muted)">Key</span>' : '';
+    return `<div class="profile-card${profile.active ? ' active' : ''}">
+      <div class="pc-head">
+        <span class="pc-name">${escapeHtml(profile.name)}</span>
+        ${profile.active ? '<span class="pill on">使用中</span>' : ''}
+        ${profile.builtin ? '<span class="pill" style="background:var(--surface);color:var(--muted)">内置</span>' : ''}
+      </div>
+      <div class="pc-url" title="${escapeHtml(profile.baseUrl)}">${escapeHtml(profile.baseUrl || '—')}</div>
+      <div class="pc-meta">
+        <span>${escapeHtml(profile.wireApi)}</span>
+        <span>${escapeHtml(profile.model || '（沿用原模型）')}</span>
+        <span>${key}</span>
+      </div>
+      <div class="pc-actions">
+        ${profile.active
+          ? '<button class="btn-ghost" disabled>当前</button>'
+          : `<button class="btn-ghost" data-profile-activate="${escapeHtml(profile.id)}">使用</button>`}
+        ${profile.builtin
+          ? ''
+          : `<button class="btn-ghost" data-profile-edit="${escapeHtml(profile.id)}">编辑</button>`}
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty">还没有供应商</div>';
+}
+
+/** 打开编辑弹窗；不传 id 就是新增。 */
+function openProfileDialog(id) {
+  const profiles = state.codex?.profiles ?? [];
+  const profile = id === undefined ? null : profiles.find(item => item.id === id);
+
+  editingProfile = profile === null ? { isNew: true } : { id: profile.id, isNew: false };
+
+  $('profileTitle').textContent = profile === null ? '添加供应商' : profile.name;
+  $('profileHint').textContent = profile?.builtin === true
+    ? '这是内置的本机网关卡：地址与 Key 跟着 app 走，不需要改。'
+    : '切换后 Codex 直连这家，不经过本机网关。';
+
+  $('profileIdInput').value = profile?.id ?? '';
+  $('profileIdInput').disabled = profile?.builtin === true || profile !== null;
+  $('profileNameInput').value = profile?.name ?? '';
+  $('profileBaseUrlInput').value = profile?.baseUrl ?? '';
+  $('profileBaseUrlInput').disabled = profile?.builtin === true;
+  $('profileWireInput').value = profile?.wireApi ?? 'responses';
+  $('profileWireInput').disabled = profile?.builtin === true;
+  $('profileModelInput').value = profile?.model ?? '';
+  $('profileKeyInput').value = '';
+  $('profileKeyInput').disabled = profile?.builtin === true;
+  $('profileKeyInput').placeholder = profile?.hasKey ? '已保存，留空则不修改' : '';
+  $('profileKeyHint').textContent = profile?.builtin === true
+    ? '内置网关的 Key 就是本 app 的 API Key，自动同步。'
+    : (profile?.hasKey ? `当前已保存：${profile.keyHint}` : '只写进 config.toml 的 experimental_bearer_token，不碰 auth.json。');
+
+  $('deleteProfileBtn').hidden = profile === null || profile.builtin === true;
+  $('saveProfileBtn').hidden = profile?.builtin === true;
+  $('profileDialog').showModal();
+  if (profile === null) $('profileIdInput').focus();
+}
+
+function closeProfileDialog() {
+  editingProfile = null;
+  $('profileDialog').close();
+}
+
+async function saveProfileFromDialog() {
+  const button = $('saveProfileBtn');
+  button.disabled = true;
+  try {
+    const payload = {
+      id: $('profileIdInput').value.trim(),
+      name: $('profileNameInput').value.trim(),
+      baseUrl: $('profileBaseUrlInput').value.trim(),
+      wireApi: $('profileWireInput').value,
+      model: $('profileModelInput').value.trim(),
+      apiKey: $('profileKeyInput').value.trim(),
+      ...(editingProfile?.isNew === false ? { originalId: editingProfile.id } : {}),
+    };
+    const result = await api('/api/codex/profiles', { method: 'POST', body: JSON.stringify(payload) });
+    state.codex = { ...state.codex, profiles: result.profiles };
+    renderCodexProfiles();
+    closeProfileDialog();
+    const saved = result.profiles.find(item => item.name === payload.name && item.builtin !== true);
+    toast(saved === undefined ? '已保存' : `已保存（ID: ${saved.id}）`);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function deleteProfile() {
+  if (editingProfile === null || editingProfile.isNew) return;
+  try {
+    const result = await api(`/api/codex/profiles/${encodeURIComponent(editingProfile.id)}`, { method: 'DELETE' });
+    state.codex = { ...state.codex, profiles: result.profiles };
+    renderCodexProfiles();
+    closeProfileDialog();
+    toast('已删除');
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function activateProfileById(id, button) {
+  if (button) button.disabled = true;
+  try {
+    const result = await api(`/api/codex/profiles/${encodeURIComponent(id)}/activate`, {
+      method: 'POST',
+      body: '{}',
+    });
+    if (result.ok !== true) { toast(result.message, true); return; }
+    await reloadCodex();
+    toast(`${result.message} —— 重启 Codex 后生效`);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function migrateThreadsToActive(button) {
+  const to = button.dataset.to ?? '';
+  if (to === '') { toast('先启用一个供应商', true); return; }
+
+  // 两步确认（不用 window.confirm —— Electron 里行为不一致）
+  if (button.dataset.confirm !== '1') {
+    button.dataset.confirm = '1';
+    button.textContent = `确认迁移到 ${to}`;
+    clearTimeout(button._timer);
+    button._timer = setTimeout(() => {
+      if (!button.isConnected) return;
+      button.dataset.confirm = '0';
+      button.textContent = '让历史会话跟随当前供应商';
+    }, 5000);
+    return;
+  }
+  button.dataset.confirm = '0';
+  button.textContent = '让历史会话跟随当前供应商';
+
+  button.disabled = true;
+  try {
+    const result = await api('/api/codex/migrate', {
+      method: 'POST',
+      body: JSON.stringify({ to }),
+    });
+    state.codex = result.view ?? state.codex;
+    renderCodex();
+    toast(result.migration.message, result.migration.ok !== true);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function restoreCodexConfig(button) {
+  if (button) button.disabled = true;
+  try {
+    const result = await api('/api/codex/restore', { method: 'POST', body: '{}' });
+    await reloadCodex();
+    toast(result.message ?? '已还原');
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+/** 渲染 Codex 账号列表。 */
+function renderCodexAccounts() {
+  const box = $('codexAccounts');
+  if (box === null) return;
+
+  const accounts = state.codex?.accounts ?? [];
+  if (accounts.length === 0) {
+    box.innerHTML = `<div class="empty">
+      <span class="empty-title">还没有记录账号</span>
+      用「记录当前登录」把现在这份登录存下来，或用「添加账号」新登一个。
+    </div>`;
+    return;
+  }
+
+  box.innerHTML = `<table>
+    <thead><tr>
+      <th>账号</th><th>类型</th><th>最近使用</th><th style="text-align:right">操作</th>
+    </tr></thead>
+    <tbody>${accounts.map(account => {
+      const plan = account.plan ? ` · ${escapeHtml(account.plan)}` : '';
+      const used = account.lastUsedAt
+        ? new Date(account.lastUsedAt).toLocaleString('zh-CN', { hour12: false })
+        : '—';
+      const source = account.source === 'capture' ? '记录' : '设备码';
+      return `<tr>
+        <td>
+          <div class="provider-name">${escapeHtml(account.label)}${account.active ? ' <span class="pill on">使用中</span>' : ''}</div>
+          <div class="provider-sub">${escapeHtml(account.email || account.id)}${plan}</div>
+        </td>
+        <td class="hint">${source}</td>
+        <td class="hint">${escapeHtml(used)}</td>
+        <td class="actions" style="text-align:right">
+          ${account.active ? '' : `<button class="btn-ghost" data-account="switch" data-id="${escapeHtml(account.id)}">切换</button>`}
+          <button class="btn-ghost" data-account="refresh" data-id="${escapeHtml(account.id)}">刷新</button>
+          <button class="btn-ghost danger" data-account="remove" data-id="${escapeHtml(account.id)}">删除</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>`;
+}
+
+/* ── 设备码登录 ──────────────────────────────────────────────────── */
+let devicePollTimer = undefined;
+let deviceSession = null;
+
+function stopDevicePolling() {
+  clearTimeout(devicePollTimer);
+  devicePollTimer = undefined;
+  deviceSession = null;
+}
+
+async function beginDeviceLogin() {
+  try {
+    const session = await api('/api/codex/accounts/login/start', { method: 'POST', body: '{}' });
+    deviceSession = session;
+
+    $('deviceCode').textContent = session.userCode;
+    $('deviceStatus').textContent = '等待你在浏览器里确认…';
+    $('deviceDialog').showModal();
+
+    const delay = Math.max(2, Number(session.intervalSeconds) || 5) * 1000;
+    const deadline = Number(session.expiresAt) || Date.now() + 600000;
+
+    const tick = async () => {
+      if (deviceSession === null) return;
+      if (Date.now() > deadline) {
+        $('deviceStatus').textContent = '设备码已过期，请重新开始';
+        stopDevicePolling();
+        return;
+      }
+      try {
+        const result = await api('/api/codex/accounts/login/poll', {
+          method: 'POST',
+          body: JSON.stringify({ deviceAuthId: session.deviceAuthId, userCode: session.userCode }),
+        });
+        if (result.status === 'ok') {
+          stopDevicePolling();
+          $('deviceDialog').close();
+          toast(`已添加账号 ${result.account?.label ?? ''}`);
+          await reloadCodex();
+          return;
+        }
+        if (result.status === 'expired') {
+          $('deviceStatus').textContent = '设备码已过期，请重新开始';
+          stopDevicePolling();
+          return;
+        }
+        devicePollTimer = setTimeout(tick, delay);
+      } catch (error) {
+        $('deviceStatus').textContent = error.message;
+        devicePollTimer = setTimeout(tick, delay);
+      }
+    };
+    devicePollTimer = setTimeout(tick, delay);
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+/** 重拉 Codex 视图并重绘。 */
+async function reloadCodex() {
+  state.codex = await api('/api/codex');
+  renderCodex();
+}
+
+async function captureCurrentLogin() {
+  try {
+    const result = await api('/api/codex/accounts/capture', {
+      method: 'POST',
+      body: JSON.stringify({ label: '' }),
+    });
+    if (result.ok !== true) {
+      toast(result.message || '记录失败', true);
+      return;
+    }
+    toast('已记录当前登录');
+    await reloadCodex();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function codexAccountAction(action, id, button) {
+  if (button) button.disabled = true;
+  try {
+    if (action === 'switch') {
+      const result = await api(`/api/codex/accounts/${encodeURIComponent(id)}/switch`, { method: 'POST', body: '{}' });
+      if (result.ok !== true) { toast(result.message, true); return; }
+      toast('已切换账号 —— 请重启 Codex 后台服务');
+    } else if (action === 'refresh') {
+      const result = await api(`/api/codex/accounts/${encodeURIComponent(id)}/refresh`, { method: 'POST', body: '{}' });
+      toast(result.message ?? '已刷新', result.ok !== true);
+    } else if (action === 'remove') {
+      if (button.dataset.confirm !== '1') {
+        button.dataset.confirm = '1';
+        button.textContent = '确认删除';
+        clearTimeout(button._timer);
+        button._timer = setTimeout(() => {
+          if (!button.isConnected) return;
+          button.dataset.confirm = '0';
+          button.textContent = '删除';
+        }, 4000);
+        return;
+      }
+      const result = await api(`/api/codex/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (result.ok !== true) { toast(result.message, true); return; }
+      toast('已删除');
+    }
+    await reloadCodex();
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+/** 接管 / 撤销。 */
+async function codexAction(action, button) {
+  if (action === 'restore') { await restoreCodexConfig(button); return; }
+  if (button) button.disabled = false;
+}
+
+function renderSetup() {
+  const key = apiKey || '你的 API Key';
+  const url = state.summary?.url ?? 'http://127.0.0.1:48760';
+
+  $('recipe').textContent = state.recipe || [
+    '# 加进 ~/.codex/config.toml',
+    'model_provider = "ofm"',
+    '',
+    '[model_providers.ofm]',
+    'name = "Codex Relay"',
+    `base_url = "${url}/v1"`,
+    'wire_api = "responses"',
+    'env_key = "OFM_API_KEY"',
+    '',
+    `export OFM_API_KEY="${key}"`,
+  ].join('\n');
+
+  $('envRecipe').textContent = `export OFM_API_KEY="${key}"`;
+}
+
+function renderSettings() {
+  const s = state.settings ?? {};
+  // ⚠️ `dataDir` 在 `/api/summary` 里，不在 `/api/settings` 里 ——
+  // 只读 settings 会永远显示「—」。
+  const rows = [
+    ['数据目录', state.summary?.dataDir ?? s.dataDir ?? '—'],
+    ['网关地址', state.summary?.url ?? '—'],
+    ['监听端口', String(s.port ?? '—')],
+    ['API Key', apiKey ? `${apiKey.slice(0, 10)}…${apiKey.slice(-6)}` : '—'],
+  ];
+  $('settingsBody').innerHTML = rows
+    .map(([k, v]) => `<div class="k">${escapeHtml(k)}</div><div class="v"><code>${escapeHtml(v)}</code></div>`)
+    .join('');
+}
+
+/* ── 操作 ─────────────────────────────────────────────────────────── */
+async function withBusy(button, task) {
+  if (state.busy) return;
+  state.busy = true;
+  if (button) button.disabled = true;
+  try { await task(); } finally {
+    state.busy = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function addAccount(button) {
+  await withBusy(button, async () => {
+    const provider = $('providerSelect').value;
+    if (!provider) { toast('没有可用渠道', true); return; }
+
+    try {
+      // 后端返回 { account: { accountId, loginUrl } }
+      const payload = await api('/api/accounts', {
+        method: 'POST',
+        body: JSON.stringify({ provider }),
+      });
+      const loginUrl = payload?.account?.loginUrl ?? '';
+
+      if (loginUrl) {
+        window.open(loginUrl, '_blank', 'noopener');
+        toast('已打开登录页，完成授权后点「刷新」');
+      } else {
+        toast('已创建账号');
+      }
+      await loadAll();
+      setStatus('on', '已连接');
+    } catch (error) {
+      toast(error.message, true);
+    }
+  });
+}
+
+async function toggleAccount(id, enabled) {
+  try {
+    await api(`/api/accounts/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
+    await refreshQuietly();
+    toast(enabled ? '已启用' : '已停用');
+  } catch (error) { toast(error.message, true); }
+}
+
+async function refreshAccount(id) {
+  try {
+    await api(`/api/accounts/${encodeURIComponent(id)}/refresh`, { method: 'POST' });
+    await refreshQuietly();
+    toast('已刷新凭据');
+  } catch (error) { toast(error.message, true); }
+}
+
+/**
+ * 删除账号 —— 两步确认。
+ *
+ * 第一次点变成「确认删除」，再点才真删，4 秒后自动还原。
+ * 比 `window.confirm` 好两点：不依赖 Electron 的原生对话框行为，
+ * 且误触的代价只是一次点击。
+ */
+async function removeAccount(id, button) {
+  if (button !== undefined && button.dataset.confirm !== '1') {
+    button.dataset.confirm = '1';
+    button.textContent = '确认删除';
+    clearTimeout(button._timer);
+    button._timer = setTimeout(() => {
+      if (!button.isConnected) return;
+      button.dataset.confirm = '0';
+      button.textContent = '删除';
+    }, 4000);
+    return;
+  }
+
+  try {
+    await api(`/api/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await refreshQuietly();
+    toast('已删除');
+  } catch (error) { toast(error.message, true); }
+}
+
+/** 只重拉账号与总览，够快。 */
+async function refreshQuietly() {
+  try {
+    const [summary, accounts] = await Promise.all([api('/api/summary'), api('/api/accounts')]);
+    state.summary = summary;
+    state.accounts = accounts.accounts ?? [];
+    renderOverview();
+    renderSteps();
+    renderAccounts();
+    void reconcileModels();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function refreshAll(button) {
+  await withBusy(button, async () => {
+    try {
+      await loadAll();
+      setStatus('on', '已连接');
+      toast('已刷新');
+    } catch (error) {
+      setStatus('off', '未连接');
+      toast(error.message, true);
+    }
+  });
+}
+
+async function copyText(text) {
+  if (!text) { toast('没有可复制的内容', true); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('已复制到剪贴板');
+  } catch {
+    toast('复制失败，请手动选中文本', true);
+  }
+}
+
+
+/* ── 自备 Key 车道 ────────────────────────────────────────────────── */
+const providerDialog = $('providerDialog');
+
+/** 打开某个 provider 的配置对话框。 */
+function openProviderDialog(id) {
+  const provider = (state.aggregate?.providers ?? []).find(p => p.id === id);
+  if (provider === undefined) return;
+  openProviderForm(provider);
+}
+
+/**
+ * 打开 provider 配置表单。
+ *
+ * 两种模式共用同一个对话框：
+ * - 内置目录里的 provider：ID / 协议不可改（定义在 registry 里）
+ * - 自定义厂商：ID / 协议 / Base URL / 模型全部可改
+ */
+function openProviderForm(provider) {
+  const id = provider.id;
+  state.editing = id;
+  const setting = provider.setting;
+  const isCustom = provider.custom === true;
+  // ⚠️ 新建自定义厂商时 `id` 是空的，事后按 id 回查会查不到 ——
+  // 所以把「这次编辑的是不是自定义」单独记下来。
+  state.editingCustom = isCustom;
+
+  // 自定义模式多两个字段
+  $('providerIdField').hidden = !isCustom;
+  $('providerFormatField').hidden = !isCustom;
+  $('providerId').value = id;
+  $('providerId').disabled = setting !== null;
+  $('providerFormat').value = provider.format || 'openai-chat';
+  // 自定义厂商没有可靠的模型清单接口，藏掉「发现模型」
+  $('discoverBtn').hidden = isCustom;
+
+  $('providerTitle').textContent = provider.name;
+  $('providerMeta').innerHTML = isCustom
+    ? '自定义厂商 · 你自己填的端点'
+    : [
+      escapeHtml(provider.format),
+      escapeHtml(provider.authKind),
+      provider.website ? `<a href="${escapeHtml(provider.website)}" target="_blank" rel="noopener">获取 Key ↗</a>` : '',
+    ].filter(Boolean).join(' · ');
+
+  $('providerBaseUrl').value = setting?.baseUrl || provider.baseUrl || '';
+  $('providerBaseUrl').placeholder = provider.baseUrl || 'https://…';
+
+  $('providerKey').value = '';
+  $('providerKey').placeholder = setting?.hasKey ? '已保存，留空则不修改' : (provider.env || 'sk-…');
+  $('providerKeyHint').textContent = setting?.hasKey
+    ? `当前已保存：${setting.keyHint}`
+    : 'Key 只写入本机的 settings.json。';
+
+  const models = setting?.models?.length ? setting.models
+    : setting?.discovered?.length ? setting.discovered
+    : provider.models;
+  $('providerModels').value = models.join('\n');
+
+  $('discoverHint').textContent = '';
+  $('removeProviderBtn').hidden = setting === null;
+  $('removeProviderBtn').dataset.confirm = '0';
+  $('removeProviderBtn').textContent = '移除';
+
+  providerDialog.showModal();
+  $('providerKey').focus();
+}
+
+function closeProviderDialog() {
+  state.editing = null;
+  state.editingCustom = false;
+  providerDialog.close();
+}
+
+/** 当前对话框里的输入（用于保存与探测）。 */
+function dialogPayload() {
+  return {
+    apiKey: $('providerKey').value.trim(),
+    baseUrl: $('providerBaseUrl').value.trim(),
+    models: $('providerModels').value
+      .split('\n')
+      .map(value => value.trim())
+      .filter(Boolean),
+    id: $('providerId').value.trim(),
+    name: $('providerTitle').textContent.trim(),
+    format: $('providerFormat').value,
+  };
+}
+
+/** 重拉聚合配置与模型目录（保存/移除之后）。 */
+async function reloadAggregate() {
+  const [aggregate, models, summary] = await Promise.all([
+    api('/api/aggregate'),
+    api('/api/models'),
+    api('/api/summary'),
+  ]);
+  state.aggregate = aggregate;
+  state.models = models.models ?? [];
+  state.summary = summary;
+  renderAggregate();
+  renderModels();
+  renderOverview();
+  renderSteps();
+}
+
+async function saveProvider() {
+  const id = state.editing;
+  if (id === null) return;
+  const button = $('saveProviderBtn');
+  button.disabled = true;
+  try {
+    if (state.editingCustom) {
+      // 自定义厂商的定义与凭据一起提交；originalId 用于改 ID 时清理旧条目
+      await api('/api/aggregate/custom', {
+        method: 'POST',
+        body: JSON.stringify({ ...dialogPayload(), originalId: id === '' ? undefined : id }),
+      });
+    } else {
+      await api(`/api/aggregate/providers/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(dialogPayload()),
+      });
+    }
+    await reloadAggregate();
+    closeProviderDialog();
+    toast('已保存');
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function testProviderKey() {
+  const id = state.editing;
+  if (id === null) return;
+  const button = $('testBtn');
+  button.disabled = true;
+  button.textContent = '测试中…';
+  try {
+    const payload = await api(`/api/aggregate/providers/${encodeURIComponent(id)}/test`, {
+      method: 'POST',
+      body: JSON.stringify(dialogPayload()),
+    });
+    const result = payload?.result ?? {};
+    toast(result.ok ? `✓ ${result.message}` : `✗ ${result.message}`, !result.ok);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = '测试连接';
+  }
+}
+
+async function discoverModels() {
+  const id = state.editing;
+  if (id === null) return;
+  const button = $('discoverBtn');
+  button.disabled = true;
+  button.textContent = '拉取中…';
+  try {
+    const payload = await api(`/api/aggregate/providers/${encodeURIComponent(id)}/discover`, {
+      method: 'POST',
+      body: JSON.stringify(dialogPayload()),
+    });
+    if (payload.ok && payload.models.length > 0) {
+      // 只有「用户还没手填」时才覆盖，避免抹掉他手工筛选过的清单
+      const current = $('providerModels').value.trim();
+      if (current === '') $('providerModels').value = payload.models.join('\n');
+      $('discoverHint').textContent = `${payload.message}（已写入缓存）`;
+      toast(payload.message);
+    } else {
+      $('discoverHint').textContent = payload.message || '没有发现模型';
+      toast(payload.message || '没有发现模型', true);
+    }
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = '发现模型';
+  }
+}
+
+async function removeProvider(button) {
+  const id = state.editing;
+  if (id === null) return;
+
+  // 两步确认（沿用账号删除的手感）
+  if (button.dataset.confirm !== '1') {
+    button.dataset.confirm = '1';
+    button.textContent = '确认移除';
+    clearTimeout(button._timer);
+    button._timer = setTimeout(() => {
+      if (!button.isConnected) return;
+      button.dataset.confirm = '0';
+      button.textContent = '移除';
+    }, 4000);
+    return;
+  }
+
+  try {
+    const url = state.editingCustom
+      ? `/api/aggregate/custom/${encodeURIComponent(id)}`
+      : `/api/aggregate/providers/${encodeURIComponent(id)}`;
+    await api(url, { method: 'DELETE' });
+    await reloadAggregate();
+    closeProviderDialog();
+    toast('已移除');
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function toggleAggregateLane(enabled) {
+  try {
+    state.aggregate = await api('/api/aggregate', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
+    await reloadAggregate();
+    toast(enabled ? '聚合车道已启用' : '聚合车道已停用');
+  } catch (error) {
+    toast(error.message, true);
+    $('aggregateEnabled').checked = state.aggregate?.enabled !== false;
+  }
+}
+
+/* ── 事件绑定 ─────────────────────────────────────────────────────── */
+document.querySelectorAll('nav .nav-item').forEach(button => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('nav .nav-item').forEach(b => b.classList.remove('active'));
+    button.classList.add('active');
+    document.querySelectorAll('main > section').forEach(section => { section.hidden = true; });
+    const target = $(`tab-${button.dataset.tab}`);
+    if (target) target.hidden = false;
+  });
+});
+
+// 账号列表：事件委托，避免把 id 拼进 inline onclick
+$('accountList').addEventListener('click', event => {
+  const button = event.target.closest('[data-action]');
+  if (button === null) return;
+  const { action, id } = button.dataset;
+  if (action === 'toggle') {
+    void toggleAccount(id, button.dataset.enabled !== 'true');
+  } else if (action === 'refresh') {
+    void refreshAccount(id);
+  } else if (action === 'remove') {
+    void removeAccount(id, button);
+  }
+});
+
+// 快速开始里的跳转按钮
+$('steps').addEventListener('click', event => {
+  const button = event.target.closest('[data-goto]');
+  if (button === null) return;
+  const target = document.querySelector(`nav .nav-item[data-tab="${button.dataset.goto}"]`);
+  if (target) target.click();
+});
+
+$('addAccountBtn').addEventListener('click', event => { void addAccount(event.currentTarget); });
+$('refreshBtn').addEventListener('click', event => { void refreshAll(event.currentTarget); });
+$('codexActions').addEventListener('click', event => {
+  const button = event.target.closest('[data-codex]');
+  if (button !== null) void codexAction(button.dataset.codex, button);
+});
+
+$('codexProfiles').addEventListener('click', event => {
+  const activate = event.target.closest('[data-profile-activate]');
+  if (activate !== null) { void activateProfileById(activate.dataset.profileActivate, activate); return; }
+  const edit = event.target.closest('[data-profile-edit]');
+  if (edit !== null) openProfileDialog(edit.dataset.profileEdit);
+});
+$('addProfileBtn').addEventListener('click', () => { openProfileDialog(); });
+$('migrateThreadsBtn').addEventListener('click', event => { void migrateThreadsToActive(event.currentTarget); });
+$('saveProfileBtn').addEventListener('click', () => { void saveProfileFromDialog(); });
+$('cancelProfileBtn').addEventListener('click', closeProfileDialog);
+$('deleteProfileBtn').addEventListener('click', () => { void deleteProfile(); });
+
+$('codexAccounts').addEventListener('click', event => {
+  const button = event.target.closest('[data-account]');
+  if (button !== null) void codexAccountAction(button.dataset.account, button.dataset.id, button);
+});
+$('captureAuthBtn').addEventListener('click', () => { void captureCurrentLogin(); });
+$('addCodexAccountBtn').addEventListener('click', () => { void beginDeviceLogin(); });
+$('openDevicePageBtn').addEventListener('click', () => {
+  if (deviceSession) window.open(deviceSession.verificationUrl, '_blank', 'noopener');
+});
+$('copyDeviceCodeBtn').addEventListener('click', () => {
+  if (deviceSession) void copyText(deviceSession.userCode);
+});
+$('cancelDeviceBtn').addEventListener('click', () => {
+  stopDevicePolling();
+  $('deviceDialog').close();
+});
+
+$('copyRecipeBtn').addEventListener('click', () => { void copyText($('recipe').textContent); });
+$('copyEnvBtn').addEventListener('click', () => { void copyText($('envRecipe').textContent); });
+$('modelSearch').addEventListener('input', renderModels);
+
+// 自备 Key 页
+$('addCustomProviderBtn').addEventListener('click', () => {
+  // 用一张空的自定义表单，不预先填任何厂商
+  openProviderForm({
+    id: '',
+    name: '自定义厂商',
+    custom: true,
+    format: 'openai-chat',
+    baseUrl: '',
+    models: [],
+    setting: null,
+  });
+  $('providerId').disabled = false;
+  $('providerId').focus();
+});
+
+$('providerSearch').addEventListener('input', renderAggregate);
+$('providerFilter').addEventListener('change', renderAggregate);
+$('providerList').addEventListener('click', event => {
+  const button = event.target.closest('[data-provider]');
+  if (button !== null) openProviderDialog(button.dataset.provider);
+});
+$('aggregateEnabled').addEventListener('change', event => {
+  void toggleAggregateLane(event.currentTarget.checked);
+});
+$('saveProviderBtn').addEventListener('click', () => { void saveProvider(); });
+$('testBtn').addEventListener('click', () => { void testProviderKey(); });
+$('discoverBtn').addEventListener('click', () => { void discoverModels(); });
+$('cancelProviderBtn').addEventListener('click', closeProviderDialog);
+$('removeProviderBtn').addEventListener('click', event => { void removeProvider(event.currentTarget); });
+
+// 标签页快捷键：⌘/Ctrl + 1..5
+document.addEventListener('keydown', event => {
+  if (!(event.metaKey || event.ctrlKey)) return;
+  const index = Number(event.key);
+  if (!Number.isInteger(index) || index < 1 || index > 6) return;
+  const button = document.querySelectorAll('nav .nav-item')[index - 1];
+  if (button) { event.preventDefault(); button.click(); }
+});
+
+/* ── 启动 ─────────────────────────────────────────────────────────── */
+void bootstrap();
+setInterval(() => { void pollLight(); }, 15000);
+</script>
+</body>
+</html>

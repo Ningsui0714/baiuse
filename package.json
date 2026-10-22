@@ -1,0 +1,60 @@
+{
+  "name": "codex-relay",
+  "version": "0.1.0",
+  "private": true,
+  "repository": "https://github.com/Ningsui0714/codex-relay.git",
+  "type": "module",
+  "description": "免费 AI API 接入 Codex CLI：集成 Kilo 免 Key 模型，并支持账号渠道、自备 Key 与故障转移",
+  "main": "electron/main.cjs",
+  "bin": {
+    "codex-relay": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "start:app": "electron .",
+    "test": "node --test src/route.test.js src/failover.test.js src/gateway.test.js src/lanes/protocol.test.js src/lanes/routing.test.js src/management.test.js src/codex/config.test.js src/codex/accounts.test.js src/codex/profiles.test.js",
+    "test:e2e": "node test/e2e.js",
+    "dist": "electron-builder --mac --dir",
+    "dist:all": "electron-builder -mwl"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.ofm.codex-gateway",
+    "productName": "Codex Relay",
+    "files": [
+      "src/**/*",
+      "vendor/**/*",
+      "ui/**/*",
+      "electron/**/*",
+      "README.md",
+      "LICENSE",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  },
+  "license": "MIT"
+}
