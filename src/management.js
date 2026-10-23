@@ -36,8 +36,8 @@
  */
 
 import { connect as codexConnect, disconnect as codexDisconnect, getStatus as codexStatus, preview as codexPreview, PROVIDER_ID as CODEX_PROVIDER_ID } from './codex/config.mjs'
-import { captureCurrentAuth, listAccounts as listCodexAccounts, pollDeviceLogin, refreshAccount as refreshCodexAccount, removeAccount as removeCodexAccount, startDeviceLogin, switchAccount } from './codex/accounts.mjs'
-import { activateProfile, listProfiles, removeProfile, restoreConfig, saveProfile } from './codex/profiles.mjs'
+import { captureCurrentAuth, clearApiKeyAuth, listAccounts as listCodexAccounts, pollDeviceLogin, refreshAccount as refreshCodexAccount, removeAccount as removeCodexAccount, startDeviceLogin, switchAccount } from './codex/accounts.mjs'
+import { activateProfile, listProfiles, purgeProviderConfig, removeProfile, restoreConfig, saveProfile } from './codex/profiles.mjs'
 import { listProviderCounts, migrateThreads } from './codex/state-db.mjs'
 import { fetchProviderModels, testProvider } from '../vendor/lanes/aggregate.js'
 import { getProvider, listProviders } from '../vendor/providers/index.js'
@@ -681,6 +681,15 @@ export function createManagementHandler({ app, apiKey }) {
       }
     }
 
+    if (path === '/api/codex/purge-providers' && req.method === 'POST') {
+      const result = purgeProviderConfig({
+        settings: app.settings,
+        dataDir: app.dataDir,
+      })
+      sendJson(res, 200, { ...result, view: codexView() })
+      return true
+    }
+
     if (path === '/api/codex/restore' && req.method === 'POST') {
       const result = restoreConfig({ dataDir: app.dataDir })
       sendJson(res, 200, { ...result, profiles: profileList() })
@@ -690,6 +699,12 @@ export function createManagementHandler({ app, apiKey }) {
     // ── Codex 账号 ────────────────────────────────────────────────────────
     if (path === '/api/codex/accounts' && req.method === 'GET') {
       sendJson(res, 200, { accounts: listCodexAccounts({ dataDir: app.dataDir }) })
+      return true
+    }
+
+    if (path === '/api/codex/auth/clear-api-key' && req.method === 'POST') {
+      const result = clearApiKeyAuth({ dataDir: app.dataDir })
+      sendJson(res, result.ok === false ? 400 : 200, { ...result, view: codexView() })
       return true
     }
 

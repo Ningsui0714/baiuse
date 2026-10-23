@@ -31,11 +31,15 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 
 import { PROVIDER_ID, buildConfigText, disconnect, getStatus, resolveCodexPaths } from './config.mjs'
+import { detectEol, findTopLevelEnd, joinLines, removeKey, removeSection, setKey, splitLines, tomlString } from './toml.mjs'
 /** Codex 的 `wire_api` 只认这两个值。 */
 export const WIRE_APIS = Object.freeze(['responses', 'chat'])
 
 /** 内置的「本机网关」档案 id（与接管用的 provider id 一致）。 */
 export const GATEWAY_PROFILE_ID = PROVIDER_ID
+
+/** 「OpenAI 官方」这张卡不是档案 —— 切到它等于把配置还原成官方登录态。 */
+export const OFFICIAL_PROFILE_ID = 'openai'
 
 /** 合法的档案 id：它会成为 TOML 表名与 `model_provider` 的值。 */
 export function isValidProfileId(raw) {
@@ -153,6 +157,19 @@ export function listProfiles({ settings, dataDir, gatewayUrl, gatewayKey, gatewa
   const gateway = gatewayProfile({ gatewayUrl: url, gatewayKey: key, gatewayModel })
   return [
     {
+      id: OFFICIAL_PROFILE_ID,
+      name: 'OpenAI 官方',
+      description: '用 ChatGPT 账号登录；Codex 直连官方端点',
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      wireApi: 'responses',
+      model: '',
+      hasKey: false,
+      keyHint: '',
+      official: true,
+      builtin: true,
+      active: activeId === OFFICIAL_PROFILE_ID,
+    },
+    {
       id: gateway.id,
       name: gateway.name,
       description: gateway.description,
@@ -252,6 +269,13 @@ function readTextSafe(file) {
 export function activateProfile({
   settings, dataDir, profileId, gatewayUrl, gatewayKey, gatewayModel, env, home,
 } = {}) {
+  // 切到「OpenAI 官方」= 把我们写进 config.toml 的东西全部摘掉，
+  // 让 Codex 回到官方登录态（auth.json 不动）。
+  if (profileId === OFFICIAL_PROFILE_ID) {
+    const restored = restoreConfig({ dataDir, env, home })
+    return { ok: true, mode: restored.mode, profileId, message: restored.message }
+  }
+
   const all = listProfiles({ settings, dataDir, gatewayUrl, gatewayKey, gatewayModel, env, home })
   const profile = all.find(entry => entry.id === profileId)
   if (profile === undefined) return { ok: false, mode: 'noop', profileId, message: '档案不存在' }
@@ -318,4 +342,75 @@ export function restoreConfig({ dataDir, env, home } = {}) {
       ? '已还原到原始配置'
       : result.mode === 'surgical' ? '已摘除本 app 写入的配置（其余保留）' : '本来就没有接管',
   }
+}
+
+/**
+ * 彻底移除「第三方供应商」痕迹，只留官方。
+ *
+ * ## 为什么需要这一步
+ *
+ * 「切回 OpenAI 官方」只把顶层 `model_provider` 改回 `openai`，
+ * 但**各家的 `[model_providers.*]` 段还留在文件里**，里面带着
+ * `experimental_bearer_token`（一个 API Key）。
+ *
+ * Codex 看到有可用的 API Key，登录界面就会停在「API key」这一侧，
+ * 账号登录入口被顶掉 —— 用户表现为「供应商登录去不掉、账号登不进去」。
+ *
+ * 所以这里把**我们写过的 provider 段全部删掉**，恢复到「只有官方」的状态。
+ * 档案本身还留在 app 的设置里，随时能再切换回来。
+ *
+ * `auth.json` 依旧不动。
+ *
+ * @returns {{ok:boolean, removed:string[], message:string}}
+ */
+export function purgeProviderConfig({ settings, dataDir, env, home } = {}) {
+  const paths = resolveCodexPaths({ env, home })
+  const before = readTextSafe(paths.configPath)
+  if (before === '') return { ok: true, removed: [], message: '没有 config.toml，无需清理' }
+
+  // 备份
+  atomicWrite(path.join(dataDir, 'codex-config.before-purge.toml'), before)
+
+  const known = new Set([PROVIDER_ID])
+  for (const profile of readProfiles(settings)) known.add(profile.id)
+
+  const eol = detectEol(before)
+  let lines = splitLines(before.replace(/\r\n/g, '\n'))
+  const removed = []
+
+  for (const id of known) {
+    const table = `model_providers.${id}`
+    const existed = lines.some(line => line.trim() === `[${table}]`)
+    lines = removeSection(lines, table)
+    if (existed) removed.push(id)
+  }
+
+  // 顶层 model_provider：指向我们删掉的表就改回官方
+  const topEnd = findTopLevelEnd(lines)
+  const current = readTopLevelProvider(lines, topEnd)
+  if (current !== '' && known.has(current)) {
+    lines = setKey(lines, 'model_provider', tomlString('openai'), 0, findTopLevelEnd(lines))
+  }
+
+  // 顺手去掉我们写的 disable_response_storage（官方模式下不需要）
+  lines = removeKey(lines, 'disable_response_storage', 0, findTopLevelEnd(lines))
+
+  atomicWrite(paths.configPath, joinLines(lines).replace(/\n/g, eol))
+
+  return {
+    ok: true,
+    removed,
+    message: removed.length === 0
+      ? '没有找到第三方 provider 段'
+      : `已移除 ${removed.length} 个第三方 provider 段（${removed.join('、')}）`,
+  }
+}
+
+/** 读顶层 model_provider 的值。 */
+function readTopLevelProvider(lines, end) {
+  for (let index = 0; index < end; index += 1) {
+    const match = /^\s*model_provider\s*=\s*"([^"]*)"/.exec(lines[index])
+    if (match !== null) return match[1]
+  }
+  return ''
 }

@@ -16,6 +16,7 @@ import {
   GATEWAY_PROFILE_ID,
   listProfiles,
   normalizeProfileId,
+  purgeProviderConfig,
   removeProfile,
   resolveProfileId,
   restoreConfig,
@@ -106,13 +107,16 @@ test('列表含内置网关档案，且标出当前生效的那份', () => {
     gatewayKey: 'ofm-key',
   })
 
-  assert.equal(profiles.length, 1)
-  assert.equal(profiles[0].id, GATEWAY_PROFILE_ID)
-  assert.equal(profiles[0].builtin, true)
-  assert.equal(profiles[0].active, false, '当前是官方 openai，不是网关')
+  // 两张内置卡：OpenAI 官方 + 本机网关
+  assert.equal(profiles.length, 2)
+  assert.equal(profiles[0].id, 'openai')
+  assert.equal(profiles[0].official, true)
+  assert.equal(profiles[0].active, true, '当前 provider 就是 openai，官方卡应生效')
+  assert.equal(profiles[1].id, GATEWAY_PROFILE_ID)
+  assert.equal(profiles[1].active, false)
   // 不返回明文 Key
   assert.equal(JSON.stringify(profiles).includes('ofm-key'), false)
-  assert.match(profiles[0].keyHint, /ofm-.*-key/)
+  assert.match(profiles[1].keyHint, /ofm-.*-key/)
 })
 
 /* ------------------------------------------------------------------ *
@@ -255,7 +259,7 @@ test('还原能字节级回到原始配置', () => {
   assert.equal(fs.readFileSync(configPath, 'utf8'), ORIGINAL)
 })
 
-test('还原后列表里没有生效项', () => {
+test('还原后由官方卡生效', () => {
   const { dataDir, env, home, configPath } = tempEnv()
   fs.writeFileSync(configPath, ORIGINAL)
   const settings = fakeSettings()
@@ -264,7 +268,9 @@ test('还原后列表里没有生效项', () => {
   restoreConfig({ dataDir, env, home })
 
   const profiles = listProfiles({ settings, dataDir, env, home, gatewayUrl: 'http://g/v1', gatewayKey: 'k' })
-  assert.equal(profiles.some(profile => profile.active), false)
+  const active = profiles.filter(profile => profile.active)
+  assert.equal(active.length, 1)
+  assert.equal(active[0].id, 'openai', '还原之后生效的是 OpenAI 官方')
 })
 
 test('切换不存在的档案不写文件', () => {
@@ -275,4 +281,65 @@ test('切换不存在的档案不写文件', () => {
   const result = activateProfile({ settings, dataDir, env, home, profileId: 'nope', gatewayUrl: 'http://g/v1', gatewayKey: 'k' })
   assert.equal(result.ok, false)
   assert.equal(fs.readFileSync(configPath, 'utf8'), ORIGINAL)
+})
+
+/* ------------------------------------------------------------------ *
+ * 彻底移除第三方配置
+ * ------------------------------------------------------------------ */
+
+test('移除第三方段：只删我们的，别的 provider 与用户内容都保留', () => {
+  const { dataDir, env, home, configPath } = tempEnv()
+  const settings = fakeSettings()
+
+  // 用户自己也有一个第三方 provider，不能误删
+  const original = ORIGINAL + `
+[model_providers.mine]
+name = "我自己配的"
+base_url = "https://mine.example/v1"
+wire_api = "chat"
+`
+  fs.writeFileSync(configPath, original)
+
+  saveProfile({ settings, dataDir, env, home, profile: { id: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'k1' } })
+  saveProfile({ settings, dataDir, env, home, profile: { id: 'kimi', baseUrl: 'https://api.moonshot.cn/v1', apiKey: 'k2' } })
+  activateProfile({ settings, dataDir, env, home, profileId: 'deepseek', gatewayUrl: 'http://g/v1', gatewayKey: 'k' })
+  activateProfile({ settings, dataDir, env, home, profileId: 'kimi', gatewayUrl: 'http://g/v1', gatewayKey: 'k' })
+
+  const result = purgeProviderConfig({ settings, dataDir, env, home })
+  assert.equal(result.ok, true)
+  assert.deepEqual([...result.removed].sort(), ['deepseek', 'kimi'])
+
+  const text = fs.readFileSync(configPath, 'utf8')
+  assert.doesNotMatch(text, /model_providers\.deepseek/)
+  assert.doesNotMatch(text, /model_providers\.kimi/)
+  assert.match(text, /\[model_providers\.mine\]/, '用户自己的 provider 必须保留')
+  assert.match(text, /model_provider = "openai"/, '顶层改回官方')
+  // 用户的其它内容一字不动
+  assert.match(text, /# 用户自己的配置/)
+  assert.match(text, /\[mcp_servers\.docs\]/)
+})
+
+test('移除第三方段：备份原文件', () => {
+  const { dataDir, env, home, configPath } = tempEnv()
+  const settings = fakeSettings()
+  fs.writeFileSync(configPath, ORIGINAL)
+  saveProfile({ settings, dataDir, env, home, profile: { id: 'a1', baseUrl: 'https://a/v1', apiKey: 'k' } })
+  activateProfile({ settings, dataDir, env, home, profileId: 'a1', gatewayUrl: 'http://g/v1', gatewayKey: 'k' })
+
+  const before = fs.readFileSync(configPath, 'utf8')
+  purgeProviderConfig({ settings, dataDir, env, home })
+
+  const backup = fs.readFileSync(path.join(dataDir, 'codex-config.before-purge.toml'), 'utf8')
+  assert.equal(backup, before)
+})
+
+test('移除第三方段：没有可删的也不报错', () => {
+  const { dataDir, env, home, configPath } = tempEnv()
+  const settings = fakeSettings()
+  fs.writeFileSync(configPath, ORIGINAL)
+
+  const result = purgeProviderConfig({ settings, dataDir, env, home })
+  assert.equal(result.ok, true)
+  assert.deepEqual(result.removed, [])
+  assert.equal(fs.readFileSync(configPath, 'utf8').replace(/\n+$/, ''), ORIGINAL.replace(/\n+$/, ''))
 })

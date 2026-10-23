@@ -763,6 +763,7 @@
         <div class="card-head">
           <h2>Codex 账号</h2>
           <div class="row">
+            <button class="btn-ghost" id="clearApiKeyBtn">清除 API 登录</button>
             <button class="btn-ghost" id="captureAuthBtn">记录当前登录</button>
             <button class="btn" id="addCodexAccountBtn">添加账号</button>
           </div>
@@ -787,6 +788,10 @@
         <div class="row" style="margin-top:10px">
           <button class="btn-ghost" id="migrateThreadsBtn">让历史会话跟随当前供应商</button>
           <span class="hint" id="migrateThreadsHint"></span>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn-ghost danger" id="purgeProvidersBtn">移除所有第三方配置（只留官方）</button>
+          <span class="hint">账号登不进去时用它：删掉各家的 provider 段与 API Key，只留官方登录</span>
         </div>
       </div>
 
@@ -1446,13 +1451,17 @@ function renderCodex() {
     ? '<button class="btn-ghost" data-codex="restore">还原原始配置</button>'
     : '';
 
+  // ⚠️ API Key 登录会顶掉账号登录入口 —— 这是用户「登录不进去」的直接原因
+  const authMode = codex.auth?.mode ?? '';
   const authText = codex.auth?.exists === false
     ? '<span class="pill warn">没有 auth.json</span>'
-    : codex.auth?.hasChatGPT
-      ? '<span class="pill on">官方登录已保留</span>'
-      : codex.auth?.hasApiKey
-        ? '<span class="pill on">API Key 登录</span>'
-        : '<span class="pill warn">未识别登录态</span>';
+    : authMode === 'apikey'
+      ? '<span class="pill warn">API Key 登录（会挡住账号登录）</span>'
+      : codex.auth?.hasChatGPT
+        ? '<span class="pill on">ChatGPT 账号登录</span>'
+        : codex.auth?.hasApiKey
+          ? '<span class="pill warn">API Key 登录（会挡住账号登录）</span>'
+          : '<span class="pill warn">未识别登录态</span>';
 
   const activeProfile = (codex.profiles ?? []).find(profile => profile.active);
   const rows = [
@@ -1517,7 +1526,8 @@ function renderCodexProfiles() {
       <div class="pc-head">
         <span class="pc-name">${escapeHtml(profile.name)}</span>
         ${profile.active ? '<span class="pill on">使用中</span>' : ''}
-        ${profile.builtin ? '<span class="pill" style="background:var(--surface);color:var(--muted)">内置</span>' : ''}
+        ${profile.official ? '<span class="pill" style="background:var(--surface);color:var(--muted)">官方</span>'
+          : profile.builtin ? '<span class="pill" style="background:var(--surface);color:var(--muted)">内置</span>' : ''}
       </div>
       <div class="pc-url" title="${escapeHtml(profile.baseUrl)}">${escapeHtml(profile.baseUrl || '—')}</div>
       <div class="pc-meta">
@@ -1628,6 +1638,47 @@ async function activateProfileById(id, button) {
     toast(error.message, true);
   } finally {
     if (button) button.disabled = false;
+  }
+}
+
+async function purgeProviders(button) {
+  if (button.dataset.confirm !== '1') {
+    button.dataset.confirm = '1';
+    button.textContent = '确认移除？';
+    clearTimeout(button._timer);
+    button._timer = setTimeout(() => {
+      if (!button.isConnected) return;
+      button.dataset.confirm = '0';
+      button.textContent = '移除所有第三方配置（只留官方）';
+    }, 5000);
+    return;
+  }
+  button.dataset.confirm = '0';
+  button.textContent = '移除所有第三方配置（只留官方）';
+  button.disabled = true;
+  try {
+    const result = await api('/api/codex/purge-providers', { method: 'POST', body: '{}' });
+    state.codex = result.view ?? state.codex;
+    renderCodex();
+    toast(result.message, result.ok === false);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function clearApiKeyLogin(button) {
+  button.disabled = true;
+  try {
+    const result = await api('/api/codex/auth/clear-api-key', { method: 'POST', body: '{}' });
+    state.codex = result.view ?? state.codex;
+    renderCodex();
+    toast(result.message ?? '已处理', result.ok === false);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -2274,6 +2325,8 @@ $('codexProfiles').addEventListener('click', event => {
 });
 $('addProfileBtn').addEventListener('click', () => { openProfileDialog(); });
 $('migrateThreadsBtn').addEventListener('click', event => { void migrateThreadsToActive(event.currentTarget); });
+$('clearApiKeyBtn').addEventListener('click', event => { void clearApiKeyLogin(event.currentTarget); });
+$('purgeProvidersBtn').addEventListener('click', event => { void purgeProviders(event.currentTarget); });
 $('saveProfileBtn').addEventListener('click', () => { void saveProfileFromDialog(); });
 $('cancelProfileBtn').addEventListener('click', closeProfileDialog);
 $('deleteProfileBtn').addEventListener('click', () => { void deleteProfile(); });

@@ -485,3 +485,69 @@ export async function refreshAccount({ dataDir, accountId, fetchImpl = fetch } =
 export function readPreviousAuth({ dataDir } = {}) {
   return readText(previousAuthFile(dataDir))
 }
+
+/**
+ * 清除「API Key 登录」，让 Codex 回到账号登录。
+ *
+ * ## 什么时候需要它
+ *
+ * Codex 判断登录方式时，**只要看到 `auth.json.OPENAI_API_KEY`（或环境变量
+ * `OPENAI_API_KEY`）就进入 API key 模式**，账号登录入口随之消失。
+ * 用户在外部工具里填过 API Key、或早期工具直接把 Key 写进 auth.json 之后，
+ * 就会卡在「退不出 API 登录」的状态。
+ *
+ * 这里只做一件事：把 `OPENAI_API_KEY` 清成 null、`auth_mode` 改回 `chatgpt`。
+ * **ChatGPT 的 tokens 一个字节都不动** —— 清完重启 Codex 就能看到账号登录。
+ *
+ * 动手前把原文件备份到 app 数据目录，清错了还能拿回来。
+ */
+export function clearApiKeyAuth({ dataDir, env, home } = {}) {
+  const paths = resolveCodexPaths({ env, home })
+  const text = readText(paths.authPath)
+  if (text === '') {
+    return { ok: false, message: 'auth.json 不存在，Codex 本来就没有登录态' }
+  }
+
+  let auth
+  try { auth = JSON.parse(text) } catch {
+    return { ok: false, message: 'auth.json 不是合法 JSON，为避免弄坏它，已放弃' }
+  }
+
+  const apiKey = typeof auth.OPENAI_API_KEY === 'string' ? auth.OPENAI_API_KEY : ''
+  const hasTokens = typeof auth.tokens?.access_token === 'string' && auth.tokens.access_token !== ''
+  const mode = typeof auth.auth_mode === 'string' ? auth.auth_mode : ''
+
+  if (apiKey === '' && mode !== 'apikey') {
+    return {
+      ok: true,
+      changed: false,
+      message: hasTokens
+        ? '没有 API Key 登录；账号登录应该可用（重启 Codex 试试）'
+        : '没有 API Key 登录；但也没有 ChatGPT 登录，需要重新登录',
+    }
+  }
+
+  // 备份原文件
+  try {
+    fs.writeFileSync(path.join(dataDir, 'codex-auth.apikey.backup.json'), text, { mode: 0o600 })
+  } catch {
+    // 备份失败不阻止：这一步本身可逆（重新填一次 Key 即可）
+  }
+
+  const next = {
+    ...auth,
+    OPENAI_API_KEY: null,
+    // 有 ChatGPT token 就切回 chatgpt 模式；没有则保持 chatgpt 让 Codex 引导登录
+    auth_mode: 'chatgpt',
+  }
+
+  writeAuth(paths.authPath, next)
+
+  return {
+    ok: true,
+    changed: true,
+    message: hasTokens
+      ? '已清除 API Key 登录，ChatGPT 登录态保留 —— 重启 Codex 即可用账号登录'
+      : '已清除 API Key 登录，重启 Codex 后走账号登录',
+  }
+}
