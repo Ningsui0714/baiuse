@@ -18,12 +18,16 @@
  *    `apply(ctx, { disableOpencode: true })` 让适配器不注册它，
  *    同时 RPC 层会拒绝 `opencode.*` 方法与 `account.create(provider=opencode)`。
  *
+ * 有道龙虾（LobsterAI）已退役：不注册适配器，旧账号 RPC 被拒绝；
+ * 自动签到、昵称修复和定时续期也不再访问该渠道。
+ *
  * 2. **只依赖本地 vendor**，不 import 任何 `@deepseek-ai/*`。
  *    宿主能力（`llm` 注册表、凭据、附件）由这里用普通对象搭出来。
  */
 
 import { parentPort, workerData } from 'node:worker_threads'
 import { accountCredentialStatus } from './account-status.mjs'
+import { probeAccount } from './probe.mjs'
 
 import { createCredentials } from '../../vendor/channels/credentials.mjs'
 import { attachments } from '../../vendor/channels/images.mjs'
@@ -237,6 +241,7 @@ parentPort.on('message', async message => {
   try {
     if (closed) throw new Error('渠道已停止')
     if (type === 'models') send({ type: 'result', id, value: await models() })
+    else if (type === 'probe') send({ type: 'result', id, value: await probeAccount({ pool: ctx.accountPool, adapters, ...message.options, signal: controller.signal }) })
     else if (type === 'rpc') send({ type: 'result', id, value: await rpc(message.call, controller.signal) })
     else if (type === 'complete') { await complete(message.request, id, controller.signal); send({ type: 'result', id }) }
     else throw new Error('未知渠道操作')

@@ -448,3 +448,18 @@ test('自定义厂商：删除时定义与 Key 一起清掉', async () => {
     assert.equal(Object.keys(aggregate.providers ?? {}).length, 0)
   } finally { await server.close() }
 })
+
+test('账号检测/签到管理接口需鉴权；启动任务返回202且参数原样交给服务',async()=>{
+  const app=fakeApp(),calls=[]
+  app.accountActions={snapshot:async()=>({records:{},job:null}),start:async(kind,options)=>{calls.push({kind,options});return {job:{id:'fixture',running:true}}},setAuto:async enabled=>{calls.push({enabled});return {autoCheckin:{enabled}}}}
+  const server=await startManagement(app)
+  try {
+    assert.equal((await server.call('/api/account-actions',{headers:{authorization:''}})).status,401)
+    assert.equal((await server.call('/api/account-actions')).status,200)
+    const result=await server.call('/api/account-actions/test',{method:'POST',body:JSON.stringify({accountId:'fixture'})})
+    assert.equal(result.status,202);assert.deepEqual(calls[0],{kind:'test',options:{accountId:'fixture'}})
+    assert.equal((await server.call('/api/account-actions/auto',{method:'POST',body:'{"enabled":false}'})).status,200)
+    assert.deepEqual(calls[1],{enabled:false})
+    assert.equal((await server.call('/api/account-actions/unknown',{method:'POST',body:'{}'})).status,404)
+  }finally{await server.close()}
+})

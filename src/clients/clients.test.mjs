@@ -183,7 +183,7 @@ test('账号渠道显示中文名及所属厂商，搜索中文且保留真实�
   const display=window.ChannelDisplay
   assert.equal(display.label('trae'),'TRAE · 字节跳动')
   assert.equal(display.label('codearts'),'CodeArts 码道 · 华为云')
-  assert.match(display.label('lobsterai'),/有道龙虾.*网易有道/)
+  assert.equal(display.label('lobsterai'),'lobsterai', '已移除渠道不再作为可用品牌展示')
   assert.match(display.label('loomy'),/科大讯飞/)
   assert.match(display.label('raccoon'),/小浣熊.*商汤/)
   assert.match(display.label('qodercn'),/中国版.*阿里云/)

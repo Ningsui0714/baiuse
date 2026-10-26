@@ -86,3 +86,22 @@ test('真实渠道 Worker 把没有凭据的 CodeArts 条目标记为待授权�
     assert.deepEqual(runtime.publicModelRows(), [])
   } finally { await runtime.close() }
 })
+
+test('有道龙虾已移除：不注册模型、拒绝旧账号操作和签到，保留历史凭据',async t=>{
+  const dir=fixture(t)
+  fs.mkdirSync(path.join(dir,'channel-pack'))
+  const account={id:'lobsterai-retired',provider:'lobsterai',nickname:'retired fixture',credentialRef:'MISSING_RETIRED',enabled:true,refreshable:false}
+  fs.writeFileSync(path.join(dir,'channel-pack/state.json'),JSON.stringify({accounts:[account],disabledModels:{},gatewayEnabled:true}))
+  const runtime=await createChannelRuntime({dataDir:dir,logger:{info(){},warn(){},error(){}}})
+  try {
+    await runtime.ready
+    assert.ok(!runtime.providers.includes('lobsterai'))
+    assert.ok(!runtime.publicModelRows().some(m=>m.id.startsWith('lobsterai/')))
+    for(const request of [{method:'account.create',payload:{provider:'lobsterai'}},{method:'credits.claimAll',payload:{provider:'lobsterai'}},{method:'account.refresh',payload:{accountId:account.id}},{method:'credits.balances',payload:{provider:'lobsterai'}}]){
+      const result=await runtime.rpc(request)
+      assert.equal(result.ok,false);assert.equal(result.error.code,'provider-retired');assert.match(result.error.message,/封号风险/)
+    }
+    assert.deepEqual((await runtime.rpc({method:'account.list',payload:{}})).value.accounts,[])
+    assert.ok(JSON.parse(fs.readFileSync(path.join(dir,'channel-pack/state.json'),'utf8')).accounts.some(a=>a.id===account.id))
+  }finally{await runtime.close()}
+})

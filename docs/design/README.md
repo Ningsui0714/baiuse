@@ -4,12 +4,14 @@
 
 ## 本版更新
 
+- 账号管理新增每日补给、逐账号实测和到账回执；有道龙虾渠道移除，页面明确展示封号风险。`daily-supplies.png` 为隔离演示数据。
+
 - 品牌从 Codex Relay 改为「白用 AI · BaiUse」，首屏围绕「一键白嫖，一键接入」，不以底层免费池名称作为主卖点。应用标题、侧栏、总览、接入页、打包名称和配置显示名统一；内部标识与数据目录不变。
 
 - 全部下拉框改为共享应用内组件：账号渠道、配置状态、两处协议和模型选择。
 - 渠道显示已有中文名与厂商，账号表格、总览和授权提示同步；原始 ID 与路由不变。详见 [名称来源](channel-labels.md)。
 - `client-hub.png` / `account-channels.png` 是本版真实 Electron 渲染的隔离演示截图，不包含个人配置或真实凭据。以下较早截图保留为迭代记录，其中 `Codex CLI` 等旧标签以本版代码和新截图为准。
-- `npm test`：210 项通过；`npm run test:ui`：56 项检查通过；`npm run test:e2e`：通过。
+- `npm test`：224 项通过；`npm run test:ui`：63 项检查通过；`npm run test:e2e`：通过。
 - 新增测试覆盖中文厂商搜索、标签与实际值分离、轮询保留选择、弹窗层级、取消还原与键盘操作。截图可用 `RELAY_UI_SCREENSHOTS=docs/design npm run test:ui` 重新生成（macOS / Linux）。
 
 ## 文件与设计系统

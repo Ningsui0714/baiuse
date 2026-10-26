@@ -35668,7 +35668,8 @@ function displayNameFor(model) {
 function registerLobsteraiLlm(ctx, options) {
   const product = options.product ?? LOBSTERAI;
   const adapter = new LobsteraiAdapter(options);
-  registerAdapterIdempotent(ctx.llm, [product.id], adapter);
+  // Retired: upstream account bans observed; never register an inference route.
+  if (!isRetiredProvider(product.id)) registerAdapterIdempotent(ctx.llm, [product.id], adapter);
   return adapter;
 }
 function buildLobsteraiModelsUrl(product, credential, clientVersion) {
@@ -35841,7 +35842,7 @@ function withQoderNickname(credential, nickname) {
 import { readFileSync as readFileSync5 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-var WASM_PATH = fileURLToPath(new URL("../../../vendor/channel-pack/qoder-auth-wasm.wasm", import.meta.url));
+var WASM_PATH = fileURLToPath(new URL("./qoder-auth-wasm.wasm", import.meta.url));
 var COSY_VERSION = "1.1.49";
 var IMPORT_MODULE = "./qoder_auth_wasm_bg.js";
 function buildQoderInferPayload(ask, requestId = crypto.randomUUID()) {
@@ -53297,7 +53298,7 @@ function registerZcodeLlm(ctx, options) {
 
 // vendor/channel-pack/src/retired-providers.ts
 function isRetiredProvider(provider) {
-  return provider === "buddy" || provider === "workbuddy";
+  return provider === "buddy" || provider === "workbuddy" || provider === "lobsterai";
 }
 
 // vendor/channel-pack/src/channel-pack-rpc.ts
@@ -58068,6 +58069,9 @@ function registerChannelPackEndpoints(ctx, pool, codearts, lobsterai, qoder, qod
   async function handleMethod(method, payload, signal) {
     const request = payload !== null && typeof payload === "object" ? payload : void 0;
     const account = typeof request?.accountId === "string" ? pool.findAccount(request.accountId) : void 0;
+    if (request?.provider === "lobsterai" || account?.provider === "lobsterai" || method.startsWith("lobsterai.")) {
+      return { ok: false, error: { code: "provider-retired", message: "有道龙虾（LobsterAI）渠道已移除：存在封号风险，实测上游返回账号已被禁用。历史凭据不再使用。" } };
+    }
     if (isRetiredProvider(request?.provider) || isRetiredProvider(account?.provider)) {
       return { ok: false, error: { code: "provider-retired", message: "WorkBuddy \u56FD\u5185\u7248\u548C\u56FD\u9645\u7248\u6E20\u9053\u5DF2\u79FB\u9664\uFF1B\u5386\u53F2\u8D26\u53F7\u51ED\u636E\u4FDD\u6301\u4E0D\u53D8\u3002" } };
     }
@@ -58090,7 +58094,7 @@ function registerChannelPackEndpoints(ctx, pool, codearts, lobsterai, qoder, qod
     switch (method) {
       case "account.list": {
         const req = payload;
-        const accounts = await pool.listAccounts(req.provider);
+        const accounts = (await pool.listAccounts(req.provider)).filter(entry => !isRetiredProvider(entry.provider));
         return { ok: true, value: { accounts: await enrichAccountIdentity(accounts, req.provider) } };
       }
       case "account.create": {
@@ -58928,7 +58932,7 @@ function registerChannelPackEndpoints(ctx, pool, codearts, lobsterai, qoder, qod
       // 一键领取：逐账号顺序执行（并发易触发风控），单个账号失败不中断整体。
       case "credits.claimAll": {
         const req = payload;
-        const accounts = await pool.listAccounts(req.provider);
+        const accounts = (await pool.listAccounts(req.provider)).filter(account => account.enabled !== false && (!Array.isArray(req.accountIds) || req.accountIds.includes(account.id)));
         if (isQoderFamily(req.provider)) {
           const { product } = requireQoderFamily(req.provider);
           const value = await collectClaimResults(accounts, void 0, {
@@ -65046,7 +65050,6 @@ function apply(ctx, config = {}) {
   registerProviderSettings(
     ctx,
     "llm-codearts",
-    "llm-lobsterai",
     "llm-qoder",
     "llm-qodercn",
     "llm-trae",
@@ -65662,15 +65665,6 @@ function apply(ctx, config = {}) {
   }).catch((error) => {
     ctx.logger.warn(`[channel-pack] \u4FEE\u6B63 TRAE \u8D26\u53F7\u663E\u793A\u540D\u5931\u8D25\uFF1A${String(error)}`);
   });
-  void lobsterai.repairAccountNicknames(pool).then((repaired) => {
-    if (repaired.length > 0) {
-      ctx.logger.info(
-        `[channel-pack] \u5DF2\u4FEE\u6B63 ${repaired.length} \u4E2A LobsterAI \u8D26\u53F7\u7684\u663E\u793A\u540D\uFF08\u624B\u673A\u53F7\u6539\u4E3A\u53EA\u9732\u672B 2 \u4F4D\uFF09\uFF1A${repaired.join(", ")}`
-      );
-    }
-  }).catch((error) => {
-    ctx.logger.warn(`[channel-pack] \u4FEE\u6B63 LobsterAI \u8D26\u53F7\u663E\u793A\u540D\u5931\u8D25\uFF1A${String(error)}`);
-  });
   void gemini.repairAccountNicknames(pool).then((repaired) => {
     if (repaired.length > 0) {
       ctx.logger.info(
@@ -65683,7 +65677,6 @@ function apply(ctx, config = {}) {
   const REFRESH_INTERVAL_MS = 30 * 60 * 1e3;
   const refreshTargets = [
     ["codearts", (p) => service.refreshAll(p)],
-    ["lobsterai", (p) => lobsterai.refreshAll(p)],
     ["qoder", (p) => qoder.refreshAll(p)],
     ["qodercn", (p) => qoderCn.refreshAll(p)],
     ["trae", (p) => trae.refreshAll(p)],
@@ -65841,7 +65834,6 @@ function apply(ctx, config = {}) {
     // `codearts` 是 registerCodeArtsLlm 返回的**适配器实例**（与 CodeArtsAuth
     // 服务实例 `service` 不同名，故这里可以简写）。
     codearts: pruned(PROVIDER, codearts),
-    lobsterai: pruned(LOBSTERAI.id, lobsteraiAdapter),
     qoder: pruned(QODER.id, qoderAdapter),
     qodercn: pruned(QODER_CN.id, qoderCnAdapter),
     trae: pruned(TRAE.id, traeAdapter),

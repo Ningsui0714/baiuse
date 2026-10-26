@@ -126,6 +126,25 @@
         </div>
       </div>
 
+      <div class="retired-channel-notice" role="note"><strong>有道龙虾（LobsterAI）渠道已移除</strong><span>使用该渠道可能导致账号被封禁。本轮实测上游返回「账号已被禁用」，现已停止相关登录、请求、续期与签到。</span></div>
+
+      <div class="card benefits-card">
+        <div class="benefits-top">
+          <div><span class="benefits-eyebrow">BaiUse · 每日补给</span><h2>免费额度，顺手领好。</h2><p>逐个测试已登录账号，集中领取支持的每日福利。</p></div>
+          <div class="benefits-controls">
+            <button class="btn" data-account-task="claim" id="claimAllBtn">每日签到领额度</button>
+            <button class="btn-ghost" data-account-task="test" id="testAllAccountsBtn">测试全部账号</button>
+            <button class="btn-ghost" data-account-task="balance" id="refreshBalancesBtn">刷新额度</button>
+          </div>
+        </div>
+        <div class="benefits-bottom">
+          <label class="benefits-auto"><input type="checkbox" id="autoCheckinToggle" disabled><span>每日首次启动自动签到</span></label>
+          <span class="hint" id="autoCheckinSummary">正在读取自动签到状态…</span>
+        </div>
+        <div class="benefits-receipts" id="benefitReceipts"></div>
+        <div class="account-job" id="accountJob" role="status" aria-live="polite">检测只发短请求，锁定原账号；不会用其他渠道的回复冒充成功。</div>
+      </div>
+
       <div class="card">
         <div class="card-head">
           <h2>渠道账号</h2>
@@ -611,6 +630,7 @@ async function pollLight() {
     renderAccounts();
     setStatus('on', '已连接');
     void reconcileModels();
+    if (!$('tab-accounts').hidden) void window.accountActions?.refresh();
   } catch {
     setStatus('off', '连接中断');
   }
@@ -626,6 +646,7 @@ async function bootstrap() {
   try {
     await loadAll();
     setStatus('on', '已连接');
+    void window.accountActions?.refresh();
 
     // 首次启动时 Kilo 清单可能还没回来 —— 前几秒多对账几次，
     // 不让用户盯着「0 个模型」等到下一轮 15 秒轮询。
@@ -813,7 +834,8 @@ function renderAccounts() {
           ${account.authenticated ? `<button class="btn-ghost" data-action="refresh" data-id="${escapeHtml(account.id)}">续期凭据</button>` : `<button class="btn-ghost" data-action="authorize" data-provider="${escapeHtml(account.provider)}">去授权</button>`}
           <button class="btn-ghost danger" data-action="remove" data-id="${escapeHtml(account.id)}">删除</button>
         </td>
-      </tr>`).join('')}
+      </tr>
+      ${window.accountActions ? `<tr class="account-detail-row"><td colspan="4">${window.accountActions.details(account)}</td></tr>` : ''}`).join('')}
     </tbody>
   </table>`;
 }
@@ -1806,6 +1828,7 @@ document.querySelectorAll('nav .nav-item').forEach(button => {
     $('currentPage').textContent = button.dataset.tab === 'overview' ? '总览' : button.textContent.trim();
     location.hash = button.dataset.tab;
     if (button.dataset.tab === 'setup') void window.clientHub?.refresh();
+    if (button.dataset.tab === 'accounts' && state.loaded) void window.accountActions?.refresh();
   });
 });
 
@@ -1923,5 +1946,6 @@ void bootstrap();
 setInterval(() => { void pollLight(); }, 15000);
 </script>
 <script src="/app/clients.js"></script>
+<script src="/app/account-actions.js"></script>
 </body>
 </html>

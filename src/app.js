@@ -17,6 +17,7 @@ import { createManagementHandler } from './management.js'
 import { createSettings, resolveDataDir } from './store.js'
 import { fetchKiloListing } from '../vendor/lanes/kilo.js'
 import { buildKiloCatalog } from '../vendor/lanes/catalog.js'
+import { createAccountActions } from './channels/actions.mjs'
 
 /**
  * 启动应用。
@@ -34,6 +35,7 @@ export async function startApp({ dataDir = resolveDataDir(), port, host = '127.0
   const listenPort = port ?? (Number.isInteger(savedPort) && savedPort > 0 ? savedPort : 48760)
 
   const channels = await createChannelRuntime({ dataDir, logger })
+  const accountActions = createAccountActions({ dataDir, channels })
   const lanes = createLanes({ channels, settings, logger })
   // 车道层需要能看见渠道包已注册的 provider，才能判定 `provider/model` 归属。
   lanes.channels = channels
@@ -78,12 +80,14 @@ export async function startApp({ dataDir = resolveDataDir(), port, host = '127.0
     dataDir,
     settings,
     channels,
+    accountActions,
     lanes,
     gateway,
     kiloReady,
     get url() { return gateway.url },
     get apiKey() { return settings.get().apiKey },
     async close() {
+      accountActions.close()
       await Promise.all([gateway.close(), channels.close()])
     },
   }

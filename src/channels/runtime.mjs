@@ -3,7 +3,7 @@
  *
  * ## 这个模块管什么
  *
- * 只管**渠道包**（12 家账号渠道）这一条车道：
+ * 只管**当前可用的账号渠道**这一条车道：
  *
  *  - `provider/model` 命名空间的模型目录
  *  - 账号池 RPC（增删、启停、排序、备份恢复）
@@ -155,6 +155,10 @@ export async function createChannelRuntime({ dataDir, logger = console }) {
     handles: model => providers.some(provider => model.startsWith(`${provider}/`)),
 
     /** 管理 RPC：账号增删、启停、排序、备份恢复。 */
+    probeAccount(options, signal) {
+      return call('probe', { options }, signal, undefined, 100000)
+    },
+
     async rpc(body, signal) {
       if (typeof body?.method !== 'string' || !Object.hasOwn(body, 'payload')) {
         throw Object.assign(new Error('渠道请求缺少 method 或 payload'), { statusCode: 400 })

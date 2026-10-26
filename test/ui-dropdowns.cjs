@@ -17,7 +17,7 @@ const root = path.resolve(__dirname, '..')
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-ui-dropdowns-'))
 app.setPath('userData', userData)
 const channels = ['codearts', 'trae', 'copilot', 'gemini', 'qwen', 'kimi', 'codex']
-const errors = [], writes = []
+const errors = [], writes = [], actionRequests = []
 let server, win
 const deadline = setTimeout(() => { console.error('UI test timed out'); app.exit(1) }, 25000)
 
@@ -39,7 +39,14 @@ app.whenReady().then(async () => {
           {id:'ofm',name:'Local fixture',builtin:true,wireApi:'responses'},
           {id:'chat-fixture',name:'Chat fixture',wireApi:'chat'},
         ]},
+        '/api/account-actions': {records:{fixture:{test:{ok:true,modelId:'codearts/fixture-flash',elapsedMs:2500,at:'2026-10-26T06:00:00Z'},claim:{kind:'claimed',credit:1000,unit:'积分',date:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai'}).format(new Date()),at:'2026-10-26T06:00:00Z'},balance:{value:{total:1234,unit:'积分'}}}},benefits:{codearts:{mode:'daily',label:'每日活动积分'}},autoCheckin:{enabled:true,lastResult:'演示结果'}},
         '/api/clients': {clients:[{id:'codex',paths:['/example/.codex/config.toml']}]},
+      }
+      if(req.method==='POST' && url.pathname.startsWith('/api/account-actions/')) {
+        let body='';req.on('data',chunk=>{body+=chunk});req.on('end',()=>{
+          actionRequests.push({path:url.pathname,body:JSON.parse(body)})
+          res.setHeader('content-type','application/json');res.writeHead(202);res.end(JSON.stringify({job:{kind:'test',running:false,done:1,total:1,errors:0}}))
+        });return
       }
       if (url.pathname.startsWith('/api/')) {
         res.setHeader('content-type', 'application/json')
@@ -53,7 +60,7 @@ app.whenReady().then(async () => {
         return
       }
       const name = url.pathname === '/app' ? 'index.html' : url.pathname.slice('/app/'.length)
-      if (!['index.html','theme.css','base.css','channels.js','model-picker.js','clients.js'].includes(name)) {
+      if (!['index.html','theme.css','base.css','channels.js','model-picker.js','clients.js','account-actions.js'].includes(name)) {
         res.writeHead(404); res.end(); return
       }
       res.setHeader('content-type', name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : 'text/html')
@@ -70,6 +77,7 @@ app.whenReady().then(async () => {
     await win.loadURL(`http://127.0.0.1:${server.address().port}/app#accounts`)
     const result = await win.webContents.executeJavaScript(`(${exercise.toString()})()`)
     assert.equal(writes.length,0,`Unexpected writes: ${writes}`)
+    assert.deepEqual(actionRequests,[{path:'/api/account-actions/test',body:{accountId:'fixture'}},{path:'/api/account-actions/claim',body:{provider:'codearts'}},{path:'/api/account-actions/auto',body:{enabled:false}}])
     assert.deepEqual(errors,[])
     if (process.env.RELAY_UI_SCREENSHOTS) {
       const directory=path.resolve(process.env.RELAY_UI_SCREENSHOTS)
@@ -80,7 +88,8 @@ app.whenReady().then(async () => {
         fs.writeFileSync(path.join(directory,name),(await win.webContents.capturePage()).toPNG())
       }
       await win.webContents.executeJavaScript(`const noMotion=document.createElement('style');noMotion.textContent='*{animation:none!important;transition:none!important}';document.head.append(noMotion);document.getElementById('toast').className='toast'`)
-      await snapshot('account-channels.png',`state.summary.lanes.channels=['codearts','lobsterai','qoder','qodercn','trae','cline','loomy','raccoon','minimax','gemini','zcode'];renderOverview();document.querySelector('[data-tab="accounts"]').click();document.getElementById('providerSelectTrigger').click()`)
+      await snapshot('account-channels.png',`state.summary.lanes.channels=['codearts','qoder','qodercn','trae','cline','loomy','raccoon','minimax','gemini','zcode'];renderOverview();document.querySelector('[data-tab="accounts"]').click();document.getElementById('providerSelectTrigger').click()`)
+      await snapshot('daily-supplies.png',`AppSelect.closeAll();document.querySelector('[data-tab="accounts"]').click();await accountActions.refresh()` )
       await snapshot('client-hub.png',`document.querySelector('[data-tab="setup"]').click();document.querySelector('[data-client="codex"]').click();await clientHub.refresh();for(let i=0;i<100&&document.getElementById('clientCode').textContent==='生成配置预览…';i++)await new Promise(r=>setTimeout(r,10))`)
       console.log('Saved isolated fixture screenshots')
     }
@@ -118,6 +127,7 @@ async function exercise() {
   check(el('providerSelect').value==='codearts','Dynamic channel default selected')
   check(el('providerSelectCurrent').textContent==='CodeArts 码道 · 华为云','Channel trigger includes Chinese product and vendor')
   check(el('accountList').textContent.includes('CodeArts 码道 · 华为云'),'Account table shares vendor labels')
+  check(document.querySelector('.retired-channel-notice').textContent.includes('封禁') && !el('providerSelectList').textContent.includes('有道龙虾'),'Removed LobsterAI is absent from choices and ban risk is explicit')
   check(el('channels').textContent.includes('TRAE · 字节跳动'),'Overview shares vendor labels')
   open('providerSelect')
   check(el('providerSelectList').children.length===7,'All channels present')
@@ -181,6 +191,16 @@ async function exercise() {
   check(el('clientModelList').textContent.includes('DeepSeek V4.1 Flash'),'Unified model picker still works')
   choose('clientModel','deepseek-v4.1-flash')
   check(el('clientModel').value==='deepseek-v4.1-flash','Unified model ID unchanged')
+  document.querySelector('[data-tab="accounts"]').click();await accountActions.refresh()
+  check(el('autoCheckinToggle').checked,'Auto check-in displays saved state without writing')
+  check(el('accountList').textContent.includes('实测可用') && el('accountList').textContent.includes('1,000'),'Account receipts display real probe and claimed amount')
+  check(el('accountList').textContent.includes('1,234'),'Account balance keeps its own unit')
+  check(el('accountList').querySelector('[data-account-id="fixture"]')!==null,'Probe button pins a specific account')
+  check(el('benefitReceipts').textContent.includes('1 / 1'),'Account overview counts only observed probes')
+  el('accountList').querySelector('[data-account-task="test"]').click();await tick();await tick()
+  check(!el('testAllAccountsBtn').disabled,'A finished task re-enables actions')
+  el('accountList').querySelector('[data-account-task="claim"]').click();await tick();await tick()
+  el('autoCheckinToggle').click();await tick();await tick()
   // Ensure option labels are text, not executable markup.
   AppSelect.setOptions('providerSelect',[{value:'fixture',label:'<img src=x onerror=alert(1)>'}])
   document.querySelector('[data-tab="accounts"]').click();open('providerSelect')

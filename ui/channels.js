@@ -2,7 +2,6 @@
 (() => {
   const channels = {
     codearts: { name:'CodeArts', chineseName:'码道', company:'华为云' },
-    lobsterai: { name:'LobsterAI', chineseName:'有道龙虾', company:'网易有道' },
     qoder: { name:'Qoder', company:'阿里云' },
     qodercn: { name:'Qoder CN', chineseName:'中国版', company:'阿里云' },
     trae: { name:'TRAE', company:'字节跳动' },

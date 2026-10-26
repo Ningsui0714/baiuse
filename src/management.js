@@ -454,6 +454,18 @@ export function createManagementHandler({ app, apiKey }) {
     }
 
     // ── 账号 ──────────────────────────────────────────────────────────────
+    if (path === '/api/account-actions' && req.method === 'GET') {
+      sendJson(res,200,await app.accountActions.snapshot())
+      return true
+    }
+    const actionsMatch = /^\/api\/account-actions\/(test|claim|balance|login-reward|auto)$/.exec(path)
+    if (actionsMatch && req.method === 'POST') {
+      const kind=actionsMatch[1]
+      const value=kind==='auto'?await app.accountActions.setAuto(body?.enabled):await app.accountActions.start(kind,body??{})
+      sendJson(res,kind==='auto'?200:202,value)
+      return true
+    }
+
     if (path === '/api/accounts' && req.method === 'GET') {
       sendJson(res, 200, { accounts: await listAccounts() })
       return true

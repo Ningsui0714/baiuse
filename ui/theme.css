@@ -349,3 +349,31 @@ select,input[type="text"],input[type="search"],input[type="password"],textarea {
 .app-select-popover .model-picker-search { padding:11px 12px; }
 .app-select-popover .model-picker-footer { padding:8px 12px; }
 .app-select-popover .model-option-copy small { font-size:10px; }
+
+/* Daily supplies: one clear action, honest per-account receipts. */
+.benefits-card { background:#f7fbff; border-color:#cfe1fc; padding:25px 27px; }
+.benefits-top { display:flex; align-items:center; justify-content:space-between; gap:24px; }
+.benefits-eyebrow { color:#5783bb; font-size:11px; font-weight:650; letter-spacing:1.3px; }
+.benefits-top h2 { margin:9px 0 7px; color:#234577; font-size:24px; letter-spacing:-.5px; }
+.benefits-top p { margin:0; color:var(--text-2); font-size:12px; }
+.benefits-controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+.benefits-bottom { display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-top:23px; padding-top:17px; border-top:1px solid #dfebfb; }
+.benefits-auto { display:flex; align-items:center; gap:8px; color:#45658e; font-size:12px; cursor:pointer; }
+.benefits-auto input { width:16px; height:16px; accent-color:var(--accent,#387df7); }
+.account-job { color:#7a91b0; font-size:11px; margin-top:14px; line-height:1.7; }
+.account-job.running { color:#2771d8; }
+.account-detail-row td { padding-top:0; }
+.account-details { display:grid; grid-template-columns:1.1fr 1fr 1.1fr auto; gap:18px; padding:17px 19px; background:#f7faff; border:1px solid #e7effa; border-radius:10px; margin-bottom:6px; }
+.account-observation { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.account-detail-label { color:#8c9db4; font-size:10px; letter-spacing:.5px; margin-bottom:4px; }
+.account-observation strong { color:#36577e; font-size:13px; font-weight:600; }
+.account-observation small { color:#7e91ac; font-size:10px; line-height:1.65; overflow-wrap:anywhere; }
+.account-observation .account-error { color:#b27444; }
+.account-detail-actions { display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
+.account-detail-actions a { text-decoration:none; font-size:11px; white-space:nowrap; }
+.account-detail-actions .btn-ghost { font-size:11px; }
+@media(max-width:1100px) { .benefits-top { align-items:flex-start; flex-direction:column; gap:18px; } .account-details { grid-template-columns:1fr 1fr; } .account-detail-actions { align-items:flex-start; } }
+@media(max-width:650px) { .account-details { grid-template-columns:1fr; } .benefits-controls { justify-content:flex-start; } }
+.benefits-receipts { color:#3e6da8; font-size:12px; font-weight:550; margin-top:17px; }
+.retired-channel-notice { display:flex; flex-direction:column; gap:5px; padding:14px 18px; margin-bottom:18px; color:#987147; background:#fffaf0; border:1px solid #efe2c9; border-radius:10px; font-size:11px; line-height:1.7; }
+.retired-channel-notice strong { color:#87623d; font-size:12px; }

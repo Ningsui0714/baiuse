@@ -12,7 +12,6 @@
 | 渠道 | 名称与厂商核对依据 |
 | --- | --- |
 | CodeArts | [华为云码道官网](https://codearts.huaweicloud.com/index.html) |
-| LobsterAI | [有道龙虾官网](https://lobsterai.youdao.com/en) |
 | Qoder / Qoder CN | [阿里云官方发布](https://developer.aliyun.com/article/1758676)、[Qoder CN 账号说明](https://docs.qoder.cn/product-overview/account-subscription-faq) |
 | TRAE | [TRAE 官网](https://www.trae.cn/)，本地渠道包同时声明 `TRAE (字节)` |
 | Cline | [Cline Bot Inc. 服务条款](https://cline.bot/tos) |
@@ -23,3 +22,7 @@
 | ZCode | [ZCode 用户协议中的智谱运营主体](https://zcode.z.ai/cn/terms) |
 
 展示的厂商信息用于识别账号来源，不代表该厂商提供的所有模型都由它自行研发。
+
+## 已移除渠道
+
+有道龙虾（LobsterAI，网易有道）已于 2026-10-26 移除。存在封号风险，本轮实测上游返回 `40302 账号已被禁用`；登录选择、模型注册、请求路由、后台续期和签到均不再使用该渠道。旧账号数据保留，不再参与调用。
