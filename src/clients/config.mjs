@@ -7,6 +7,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { parse, modify, applyEdits, printParseErrorCode } from 'jsonc-parser'
 import * as codex from '../codex/config.mjs'
+import {harnessPlan,harnessValues,patchHarness} from './harness.mjs'
 
 export const DESKTOP_MODEL = 'claude-sonnet-4-5'
 export const CLIENTS = [
@@ -15,6 +16,7 @@ export const CLIENTS = [
   { id: 'claude-desktop', name: 'Claude Desktop', kind: 'Messages', mode: 'in-app', note: '在桌面应用内配置 Third-Party Inference / Gateway，不读取 CLI 的 settings.json 作为桌面网关配置。这里仅准备参数与模型映射；应用内测试连接并应用后才生效，管理员策略可能将该表单设为只读。' },
   { id: 'gemini', name: 'Gemini CLI', kind: 'Gemini', note: '同步写入 .env 与 settings.json；项目级配置或终端环境变量可能覆盖全局设置。' },
   { id: 'opencode', name: 'OpenCode', kind: 'Chat Completions', note: '新增 codex-relay provider，保留其他供应商、MCP 与现有登录。' },
+  { id: 'deepseek-harness', name: 'DeepSeek Harness', kind: 'Chat Completions', note: '接入 Web 与 Desktop profile；同步已初始化的 tui/headless。首次接入后重启 Harness；保留其他模型、插件、MCP 和官方登录，不修改 .credentials.yaml。' },
 ]
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status })
@@ -99,6 +101,10 @@ function plan(id, options) {
       json(path.join(dir, 'settings.json'), [change('security.auth.selectedType', 'gemini-api-key'), change('model.name', model)]),
     ]
   }
+  if (id === 'deepseek-harness') {
+    const harness=harnessPlan({...options,home,env})
+    return [...harness.files,{file:path.join(harness.root,'.env'),format:'env',changes:[change('BAIUSE_API_KEY',apiKey)]}]
+  }
   if (id === 'opencode') {
     const dir = env.OPENCODE_CONFIG_DIR || path.join(config, 'opencode')
     const file = fs.existsSync(path.join(dir, 'opencode.jsonc')) ? path.join(dir, 'opencode.jsonc') : path.join(dir, 'opencode.json')
@@ -109,6 +115,7 @@ function plan(id, options) {
   }
   throw fail(`未知客户端：${id}`, 404)
 }
+const patchFile=(entry,before)=>entry.format==='env'?patchEnv(before,entry.changes):entry.format==='harness-yaml'?patchHarness(before,entry.changes,entry.file):patchJson(before,entry.changes,entry.file)
 function markerFile(id, options) { return path.join(options.dataDir, 'client-backups', `${id}.json`) }
 function marker(id, options) {
   const text = read(markerFile(id, options))
@@ -133,7 +140,7 @@ export function clientPreview(id, options) {
     const preview = codex.preview(codexOptions(options))
     return { files: [{ path: codex.resolveCodexPaths(options).configPath, content: preview.after }], note: CLIENTS[0].note }
   }
-  const files = plan(id, options).map(entry => ({ path: entry.file, content: entry.format === 'env' ? patchEnv(read(entry.file), entry.changes) : patchJson(read(entry.file), entry.changes, entry.file) }))
+  const files = plan(id, options).map(entry => ({ path: entry.file, content: patchFile(entry,read(entry.file)) }))
   return { files, note: CLIENTS.find(client => client.id === id).note }
 }
 
@@ -168,7 +175,7 @@ export function connectClient(id, options) {
     if (fs.existsSync(entry.file) && fs.lstatSync(entry.file).isSymbolicLink()) throw fail(`配置文件是符号链接，请先在目标目录管理配置：${entry.file}；未修改原文件`)
     const before = read(entry.file)
     const original = previous?.files.find(file => file.file === entry.file)?.original ?? { text: before }
-    const applied = entry.format === 'env' ? patchEnv(before, entry.changes) : patchJson(before, entry.changes, entry.file)
+    const applied = patchFile(entry,before)
     return { ...entry, original, applied }
   })
   // Persist a recovery journal (including originals) BEFORE touching client files.
@@ -210,6 +217,14 @@ export function restoreClient(id, options) {
         next = lines.join(current?.includes('\r\n') ? '\r\n' : '\n')
       }
       return { file: entry.file, text: next }
+    }
+    if(entry.format==='harness-yaml') {
+      const now=harnessValues(current,entry.file),old=harnessValues(original,entry.file),applied=harnessValues(entry.applied,entry.file)
+      const changes=entry.changes.map(({keys})=>{
+        if(!same(now(keys),applied(keys))&&!same(now(keys),old(keys)))throw fail(`还原冲突：${entry.file} 的 ${keys.join('.')} 已被其他程序修改；备份已保留`,409)
+        return {keys,value:old(keys)}
+      })
+      return {file:entry.file,text:patchHarness(current,changes,entry.file,original)}
     }
     const now = object(current, entry.file)
     const old = object(original, entry.file)

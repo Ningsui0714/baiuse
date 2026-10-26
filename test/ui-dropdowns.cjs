@@ -41,7 +41,7 @@ app.whenReady().then(async () => {
           {id:'chat-fixture',name:'Chat fixture',wireApi:'chat'},
         ]},
         '/api/account-actions': {records:{fixture:{test:{ok:true,modelId:'codearts/fixture-flash',elapsedMs:2500,at:'2026-10-26T06:00:00Z'},claim:{kind:'claimed',credit:1000,unit:'积分',date:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai'}).format(new Date()),at:'2026-10-26T06:00:00Z'},balance:{value:{total:1234,unit:'积分'}}}},benefits:BENEFITS,autoCheckin:{enabled:true,lastResult:'演示结果'}},
-        '/api/clients': {clients:[{id:'codex',paths:['/example/.codex/config.toml']}]},
+        '/api/clients': {clients:[{id:'codex',paths:['/example/.codex/config.toml']},{id:'deepseek-harness',paths:['/example/.dsh/profiles/web/cordis.patch.yml','/example/.dsh/profiles/desktop/cordis.patch.yml','/example/.dsh/.env']}]},
       }
       if(req.method==='POST' && url.pathname.startsWith('/api/account-actions/')) {
         let body='';req.on('data',chunk=>{body+=chunk});req.on('end',()=>{
@@ -56,15 +56,19 @@ app.whenReady().then(async () => {
           res.writeHead(405); res.end('{}'); return
         }
         const preview={files:[{path:'/example/.codex/config.toml',content:'model_provider = "ofm"\nmodel = "deepseek-v4.1-flash"\n\n[model_providers.ofm]\nname = "BaiUse"\nbase_url = "http://127.0.0.1:48760/v1"\nwire_api = "responses"\nenv_key = "OFM_API_KEY"\n'}]}
+        if(url.pathname==='/api/clients/deepseek-harness/preview')preview.files=[
+          {path:'/example/.dsh/profiles/web/cordis.patch.yml',content:'- id: llm-pi-ai\n  config:\n    providers:\n      baiuse:\n        api: openai-completions\n        models: [{id: deepseek-v4.1-flash}]\n- id: agent-default-model\n  config: {provider: baiuse, model: deepseek-v4.1-flash}\n'},
+          {path:'/example/.dsh/profiles/desktop/cordis.patch.yml',content:'# Desktop profile\n- id: agent-default-model\n  config: {provider: baiuse, model: deepseek-v4.1-flash}\n'},
+          {path:'/example/.dsh/.env',content:'BAIUSE_API_KEY="••••••••"\n'}]
         preview.files[0].content=preview.files[0].content.replace('127.0.0.1:48760',req.headers.host)
         res.end(JSON.stringify(url.pathname.endsWith('/preview') ? preview : fixtures[url.pathname] ?? {}))
         return
       }
       const name = url.pathname === '/app' ? 'index.html' : url.pathname.slice('/app/'.length)
-      if (!['index.html','theme.css','base.css','channels.js','model-picker.js','clients.js','account-actions.js'].includes(name)) {
+      if (!['index.html','theme.css','base.css','channels.js','model-picker.js','clients.js','account-actions.js'].includes(name) && !/^assets\/clients\/[a-z-]+\.(svg|png)$/.test(name)) {
         res.writeHead(404); res.end(); return
       }
-      res.setHeader('content-type', name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : 'text/html')
+      res.setHeader('content-type', name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : name.endsWith('.svg')?'image/svg+xml':name.endsWith('.png')?'image/png':'text/html')
       res.end(fs.readFileSync(path.join(root,'ui',name)))
     })
     await new Promise(resolve => server.listen(0,'127.0.0.1',resolve))
@@ -77,11 +81,22 @@ app.whenReady().then(async () => {
       if (event.level === 'error') errors.push(event.message)
     })
     await win.loadURL(`http://127.0.0.1:${server.address().port}/app#accounts`)
-    const result = await win.webContents.executeJavaScript(`(${exercise.toString()})()`)
+    let result = await win.webContents.executeJavaScript(`(${exercise.toString()})()`)
     assert.equal(writes.length,0,`Unexpected writes: ${writes}`)
     assert.deepEqual(actionRequests,[{path:'/api/account-actions/test',body:{accountId:'fixture'}},{path:'/api/account-actions/claim',body:{provider:'codearts'}},{path:'/api/account-actions/auto',body:{enabled:false}}])
     assert.deepEqual(errors,[])
     assert.deepEqual(externalLinks,['https://docs.qoder.com/events/100credits'])
+    for(const width of [1440,1080,390]) {
+      win.setSize(width,1180)
+      const layout=await win.webContents.executeJavaScript(`(async()=>{
+        document.querySelector('[data-tab="setup"]').click();document.querySelector('[data-client="deepseek-harness"]').click();
+        await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+        return {overflow:document.documentElement.scrollWidth>innerWidth,tabs:[...document.querySelectorAll('[data-client]')].map(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.left>=0&&r.right<=innerWidth+1})};
+      })()`)
+      assert.equal(layout.overflow,false,`${width}px: no page-level horizontal overflow`)
+      assert.ok(layout.tabs.length===6&&layout.tabs.every(Boolean),`${width}px: all six client tabs fit`)
+      result+=2
+    }
     if (process.env.RELAY_UI_SCREENSHOTS) {
       const directory=path.resolve(process.env.RELAY_UI_SCREENSHOTS)
       fs.mkdirSync(directory,{recursive:true})
@@ -94,6 +109,7 @@ app.whenReady().then(async () => {
       await snapshot('account-channels.png',`state.summary.lanes.channels=['codearts','qoder','qodercn','trae','cline','loomy','raccoon','minimax','gemini','zcode'];renderOverview();document.querySelector('[data-tab="accounts"]').click();document.getElementById('providerSelectTrigger').click()`)
       await snapshot('daily-supplies.png',`AppSelect.closeAll();document.querySelector('[data-tab="accounts"]').click();await accountActions.refresh()` )
       await snapshot('client-hub.png',`document.querySelector('[data-tab="setup"]').click();document.querySelector('[data-client="codex"]').click();await clientHub.refresh();for(let i=0;i<100&&document.getElementById('clientCode').textContent==='生成配置预览…';i++)await new Promise(r=>setTimeout(r,10))`)
+      await snapshot('harness-client.png',`document.querySelector('[data-client="deepseek-harness"]').click();await clientHub.refresh();for(let i=0;i<100&&!document.getElementById('clientCode').textContent.includes('agent-default-model');i++)await new Promise(r=>setTimeout(r,10))`)
       console.log('Saved isolated fixture screenshots')
     }
     console.log(`PASS: ${result} Electron dropdown checks; no user settings or account writes`)
@@ -194,6 +210,24 @@ async function exercise() {
   check(el('clientModelList').textContent.includes('DeepSeek V4.1 Flash'),'Unified model picker still works')
   choose('clientModel','deepseek-v4.1-flash')
   check(el('clientModel').value==='deepseek-v4.1-flash','Unified model ID unchanged')
+  check(el('clientTabs').querySelectorAll('[data-client]').length===6,'All six client integrations are visible')
+  const officialIcons=[...el('clientTabs').querySelectorAll('img')];await Promise.all(officialIcons.map(img=>img.decode().catch(()=>{})))
+  check(officialIcons.length===6 && officialIcons.every(img=>img.complete&&img.naturalWidth>0),'Every official client image loads from packaged local assets')
+  check(!el('clientTabs').querySelector('svg') && new Set(officialIcons.map(img=>img.src)).size===6,'No hand-drawn client symbols or letter placeholders remain')
+  document.querySelector('[data-client="deepseek-harness"]').click()
+  for(let i=0;i<100&&!el('clientCode').textContent.includes('agent-default-model');i++)await tick()
+  check(el('clientHeading').textContent.includes('DeepSeek Harness') && el('clientEndpoint').value.endsWith('/v1'),'Harness has its own tab and OpenAI-compatible endpoint')
+  check(el('clientCode').textContent.includes('baiuse') && el('previewFilename').textContent.includes('cordis.patch.yml'),'Harness renders YAML config preview')
+  check(el('clientPaths').textContent.includes('/profiles/desktop/'),'Harness exposes Web and Desktop profile paths')
+  check(el('previewFiles').textContent.includes('Web · cordis.patch.yml')&&el('previewFiles').textContent.includes('Desktop · cordis.patch.yml'),'Same-named patches are distinguished by profile')
+  el('previewFiles').querySelector('[data-preview-file="1"]').click()
+  check(el('clientCode').textContent.includes('# Desktop profile'),'Desktop profile preview can be selected independently')
+  el('previewFiles').querySelector('[data-preview-file="2"]').click()
+  check(el('clientCode').textContent.includes('BAIUSE_API_KEY="••••••••"'),'Harness credential file has a separate masked preview')
+  key(document.querySelector('[data-client="deepseek-harness"]'),'ArrowRight')
+  check(document.querySelector('[data-client="codex"]').getAttribute('aria-selected')==='true','Keyboard navigation wraps across all six clients')
+  key(document.querySelector('[data-client="codex"]'),'End')
+  check(document.querySelector('[data-client="deepseek-harness"]').getAttribute('aria-selected')==='true','End selects the sixth client rather than a hard-coded fifth')
   document.querySelector('[data-tab="accounts"]').click();await accountActions.refresh()
   check(el('autoCheckinToggle').checked,'Auto check-in displays saved state without writing')
   check(el('accountList').textContent.includes('实测可用') && el('accountList').textContent.includes('1,000'),'Account receipts display real probe and claimed amount')

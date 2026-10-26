@@ -331,6 +331,8 @@ async function serveUi(res, relative) {
         ? 'text/css; charset=utf-8'
         : target.pathname.endsWith('.js')
           ? 'text/javascript; charset=utf-8'
+          : target.pathname.endsWith('.svg') ? 'image/svg+xml'
+          : target.pathname.endsWith('.png') ? 'image/png'
           : 'application/octet-stream'
     res.writeHead(200, { 'content-type': type })
     res.end(content)

@@ -15,6 +15,7 @@
 - [Anthropic 官方：Desktop app 网关配置](https://code.claude.com/docs/en/llm-gateway-connect#desktop-app)。桌面应用读取第三方推理配置；本地用户在应用内配置，组织也可预先下发。
 - [Gemini CLI 配置](https://geminicli.com/docs/reference/configuration/)
 - [OpenCode 自定义供应商](https://opencode.ai/docs/providers/#custom-provider)
+- [DeepSeek Harness 供应商配置](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/providers.md)、[llm-pi-ai 配置说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/llm/llm-pi-ai/README.md)；已与本机 `dsh 0.2.1-rc.2` 验证。
 
 ## 各客户端的实际行为
 
@@ -47,6 +48,19 @@
 - 配置入口：Help → Troubleshooting → Enable Developer Mode，然后 Developer → Configure Third-Party Inference → Gateway。
 - 需要在应用内测试并应用，受安装版本与管理员策略约束。
 - 页面「检测到网关请求」仅是成功请求观测，不是应用内状态验证。网关重启后这项运行时观测清空。
+
+### DeepSeek Harness
+
+- 配置根目录：`DSH_HOME`，默认 `~/.dsh`；支持 `~` / `~/` 展开。
+- 写入 `profiles/web/cordis.patch.yml` 与 `profiles/desktop/cordis.patch.yml`。`desktop` 是桌面应用专属 profile，不用 CLI 启动该 profile。
+- 如果 `profiles/tui/cordis.yml` 或 `profiles/headless/cordis.yml` 已存在，同步对应 patch；不枚举修改自定义机器人 profile。
+- YAML 按稳定的 Cordis `id` 合并：`llm-pi-ai.config.providers.baiuse` 新增 OpenAI-compatible 连接，`agent-default-model` 选择 `baiuse` 和统一模型 ID。清除旧模型的 `reasoningEffort`，原值可还原。其他供应商、插件、MCP 条目保留。
+- 使用 `api: openai-completions`、实际网关地址 + `/v1`、`apiKeyEnv: BAIUSE_API_KEY`。Key 写入配置根目录 `.env`，不修改 `.credentials.yaml` 或官方登录缓存。首次接入后重启 Harness，载入新凭据。
+- 已知上下文、输出预算写入模型声明；模型池所有渠道的输出预算已知且一致时也会传入，不凭空设小上限。不确定的能力留给 Harness 默认值和上游模型，不代表无限上下文。
+- 常规 YAML 预览会掩码已有的内联 Key / token / secret / password，但保留 `apiKeyEnv` 引用及 `maxTokens` 等数值字段。显式复制才返回完整配置。
+- 备份 / 还原与其他文件式客户端共用事务日志；还原按条目 ID 而不是数组位置定位，因此后来新增插件、调整条目顺序仍可保留。连接字段被外部改动则返回冲突，保留备份。
+
+真实 CLI、本地工具协议、实际 DeepSeek 上游的验证边界见 [Harness 验证记录](testing/harness-client-2026-10-26.md)。
 
 ## 账号渠道的 DeepSeek 为什么没有显示
 

@@ -6,18 +6,11 @@
     { id:'claude-desktop', name:'Claude Desktop', kind:'Gateway' },
     { id:'gemini', name:'Gemini CLI', kind:'Gemini' },
     { id:'opencode', name:'OpenCode', kind:'Chat Completions' },
+    { id:'deepseek-harness', name:'DeepSeek Harness', kind:'Chat Completions' },
   ];
   const copyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></svg>';
-  const icon = client => {
-    const symbols = {
-      codex:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 6l6 6-6 6m9 0h5"/></svg>',
-      claude:'<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M16 2v28M2 16h28M6 6l20 20M6 26L26 6M11 3l10 26M3 11l26 10M3 21l26-10M11 29L21 3"/></svg>',
-      'claude-desktop':'A',
-      gemini:'<svg viewBox="0 0 32 32" fill="currentColor"><path d="M16 0c2.2 10.7 5.3 13.8 16 16-10.7 2.2-13.8 5.3-16 16C13.8 21.3 10.7 18.2 0 16 10.7 13.8 13.8 10.7 16 0z"/></svg>',
-      opencode:'<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M16 2l12 7v14l-12 7-12-7V9z"/><path d="M10 6l6-3 6 3" stroke="#a7b6cc"/></svg>',
-    };
-    return `<span class="client-icon ${client.id}" aria-hidden="true">${symbols[client.id]}</span>`;
-  };
+  const iconFiles={codex:'codex.png',claude:'claude-code.svg','claude-desktop':'claude-desktop.png',gemini:'gemini-cli.png',opencode:'opencode.svg','deepseek-harness':'deepseek-harness.svg'};
+  const icon=client=>`<span class="client-icon ${client.id}" aria-hidden="true"><img src="/app/assets/clients/${iconFiles[client.id]}" alt="" width="36" height="36" decoding="async"></span>`;
   let selected = 'claude', records = [], selectedFile = 0, preview = null, requestId = 0, loading = false, busy = false;
   const models = new Map();
   const $hub = id => document.getElementById(id);
@@ -58,7 +51,7 @@
     modelPicker.update({items:window.ModelPicker.itemsFor(state.models),value:modelSelect.value,disabled:modelSelect.disabled});
     renderSources();
     const root = state.summary?.url ?? location.origin;
-    $hub('clientEndpoint').value = selected === 'codex' || selected === 'opencode' ? `${root}/v1` : selected === 'claude-desktop' ? `${root}/claude-desktop` : root;
+    $hub('clientEndpoint').value = ['codex','opencode','deepseek-harness'].includes(selected) ? `${root}/v1` : selected === 'claude-desktop' ? `${root}/claude-desktop` : root;
     $hub('clientPathsLabel').textContent = desktop ? '配置入口' : '配置文件路径';
     $hub('clientPaths').innerHTML = desktop ? 'Claude Desktop → Developer → Configure Third-Party Inference → Gateway' : record?.paths?.length ? record.paths.map(p => `<div>${escapeHtml(p)}</div>`).join('') : '配置路径在连接后显示';
     $hub('desktopGuide').hidden = !desktop;
@@ -86,8 +79,13 @@
   function showFile() {
     const files = preview?.files ?? [];
     const file = files[selectedFile];
-    $hub('previewFilename').textContent = file ? `(${file.path.split(/[\\/]/).at(-1)})` : '';
-    $hub('previewFiles').innerHTML = files.length > 1 ? files.map((f,i) => `<button type="button" role="tab" aria-selected="${i === selectedFile}" class="preview-file${i === selectedFile ? ' active' : ''}" data-preview-file="${i}">${escapeHtml(f.path.split(/[\\/]/).at(-1))}${i > 0 && f.path.endsWith('claude_desktop_config.json') ? ' · 3p' : ''}</button>`).join('') : '';
+    const label = f => {
+      const parts=f.path.split(/[\\/]/),profile=selected==='deepseek-harness'&&parts.at(-3)==='profiles'?parts.at(-2):'';
+      const name={web:'Web',desktop:'Desktop',tui:'TUI',headless:'Headless'}[profile];
+      return `${name?name+' · ':''}${parts.at(-1)}`;
+    };
+    $hub('previewFilename').textContent = file ? `(${label(file)})` : '';
+    $hub('previewFiles').innerHTML = files.length > 1 ? files.map((f,i) => `<button type="button" role="tab" aria-selected="${i === selectedFile}" title="${escapeHtml(f.path)}" class="preview-file${i === selectedFile ? ' active' : ''}" data-preview-file="${i}">${escapeHtml(label(f))}${i > 0 && f.path.endsWith('claude_desktop_config.json') ? ' · 3p' : ''}</button>`).join('') : '';
     $hub('clientCode').textContent = file?.content ?? '选择一个模型以生成配置预览。';
   }
   async function loadPreview() {
@@ -127,7 +125,7 @@
     event.preventDefault();
     modelPicker.close();
     const index = clients.findIndex(c => c.id === selected);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? 4 : (index + (event.key === 'ArrowRight' ? 1 : -1) + 5) % 5;
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? clients.length-1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + clients.length) % clients.length;
     selected = clients[next].id; render(); document.getElementById(`client-tab-${selected}`).focus();
   });
   $hub('clientModelSources').addEventListener('click', event => {

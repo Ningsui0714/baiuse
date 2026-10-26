@@ -4,7 +4,7 @@
 
 **把免费 AI 模型，一键接入你常用的编程工具。**
 
-白用 AI（BaiUse）帮你把各家的免费模型额度用起来。一键接入 Codex、Claude Code、Gemini CLI 和 OpenCode；同模型额度耗尽，自动切换可用渠道，不用反复改配置、切厂商、重启客户端。Claude Desktop 提供应用内接入引导；自备 Key 也能继续用。
+白用 AI（BaiUse）帮你把各家的免费模型额度用起来。一键接入 Codex、Claude Code、Gemini CLI、OpenCode 和 DeepSeek Harness；同模型额度耗尽，自动切换可用渠道，不用反复改配置、切厂商、重启客户端。Claude Desktop 提供应用内接入引导；自备 Key 也能继续用。
 
 ![白用 AI · BaiUse 客户端接入界面](docs/design/client-hub.png)
 
@@ -16,12 +16,14 @@
 
 ## 这一版做了什么
 
+- **DeepSeek Harness 一键接入**：支持 Web、Desktop，自动同步已初始化的 TUI / Headless profile；保留其他供应商、插件和官方登录，支持预览、备份和还原。
+- **六个客户端使用官方图标**：原始品牌图打包到应用内部，不再使用手绘符号或字母替代，也不依赖外网加载。
 - **账号实测与每日补给**：批量测试已登录账号，一键签到、刷新额度；按账号显示真实回复、失败原因和到账回执。支持每日首次启动自动签到。
 - **移除有道龙虾渠道**：存在封号风险，本轮实测上游返回「账号已被禁用」，不再提供登录、模型、请求、续期与签到。
 - **浅蓝色工作空间**：总览、账号管理、模型目录、自备 Key、客户端接入和设置统一设计。
 - **全部使用应用内下拉框**：渠道、筛选、协议和模型选择均支持搜索、键盘选择、Esc 关闭，不再弹出系统选项菜单。
 - **渠道名称更容易辨认**：显示产品名、已有中文名及所属厂商，例如 `CodeArts 码道 · 华为云`、`TRAE · 字节跳动`。
-- **五类客户端共用模型目录**：账号额度、免登录免费模型和自备 Key，都可用于客户端接入。
+- **六类客户端共用模型目录**：账号额度、免登录免费模型和自备 Key，都可用于客户端接入。
 - **模型合并与自动换路**：客户端保存稳定模型 ID，不必在每次额度用尽后改厂商配置、重启客户端。
 - **配置可预览、可还原**：首次写入前备份，只调整连接、模型和鉴权相关字段，保留无关设置。
 - **保留完整请求与输出预算**：网关不主动裁剪上下文、不默认施加原有的 32 MB 请求上限，也不再把显式输出预算静默压至 64K；实际能力仍由上游模型决定。
@@ -31,7 +33,8 @@ Codex（桌面版 / CLI） ─┐
 Claude Code          ─┤                      ┌─ 已登录的账号渠道
 Claude Desktop       ─┼─ BaiUse 一键接入 ─┼─ 免登录免费模型
 Gemini CLI           ─┤    统一模型 + 自动换路  └─ 自备 Key / 自定义端点
-OpenCode             ─┘
+OpenCode             ─┤
+DeepSeek Harness     ─┘
 ```
 
 ## 快速开始
@@ -56,7 +59,7 @@ npm run start:app
 1. 在「账号管理」登录渠道账号，或在「自备 Key」添加供应商。使用免登录免费模型无需先登录渠道账号。
 2. 到「模型目录」确认可用模型。目录会异步加载；完成授权后，新渠道模型自动加入。
 3. 打开「客户端接入」，选择客户端和模型，查看配置预览。
-4. Codex、Claude Code、Gemini CLI、OpenCode 点击「一键接入」后重启相应客户端；Claude Desktop 按下方的应用内流程接入。
+4. Codex、Claude Code、Gemini CLI、OpenCode、DeepSeek Harness 点击「一键接入」后重启相应客户端；Claude Desktop 按下方的应用内流程接入。
 
 网关需要保持运行。默认监听 `127.0.0.1:48760`；端口被占用时会自动选择空闲端口，以界面显示的实际地址为准。
 
@@ -99,8 +102,15 @@ node src/cli.js --help
 | **Gemini CLI** | 一键接入 | `~/.gemini/.env` 与 `settings.json` |
 | **OpenCode** | 一键接入 | 配置目录下新增 `codex-relay` provider，优先使用现有 `opencode.jsonc` |
 | **Claude Desktop** | 准备参数 → 在桌面应用内配置 Gateway | 仅保存本地模型映射，不自动改写桌面应用部署配置 |
+| **DeepSeek Harness** | 一键接入 Web / Desktop；同步已初始化的 TUI / Headless | `~/.dsh/profiles/<profile>/cordis.patch.yml` 与 `~/.dsh/.env`；保留 `.credentials.yaml` |
 
 以上为默认路径；支持的客户端目录环境变量见 [接入说明](docs/client-integrations.md)。配置预览默认掩码敏感字段，点击复制时才读取完整内容。首次文件式接入前自动备份；还原时保留后来新增的无关设置，若连接字段已被其他程序改动则提示冲突，不覆盖现有内容。
+
+### DeepSeek Harness
+
+先安装官方 Harness，然后在「客户端接入」选择 **DeepSeek Harness → 模型 → 一键接入**，重启 Harness。Web 与桌面版 profile 会同时接入；已经初始化过的 `tui` / `headless` 也会同步，自定义机器人 profile 不动。使用 `DSH_HOME` 时需让 BaiUse 与 Harness 使用相同环境变量。
+
+连接采用 `llm-pi-ai` 的 OpenAI-compatible 供应商，统一模型 ID 经 `/v1/chat/completions` 转发；本机 Key 单独写入 `.env` 的 `BAIUSE_API_KEY`，不替换官方凭据。再次切换同模型的上游渠道不需要重启 Harness。真实 `dsh` 调用和还原验证见 [Harness 验证记录](docs/testing/harness-client-2026-10-26.md)。
 
 ### Claude Desktop 必须在应用内配置
 
@@ -225,13 +235,15 @@ BaiUse 的本机网关 Key 用于客户端连接本地服务，不是厂商 API 
 npm test          # 单元与集成测试
 npm run test:e2e  # 本地 429 → 备用渠道端到端测试
 npm run test:ui   # 隔离的真实 Electron 页面交互测试，需要图形环境
+npm run test:harness # 可选：已安装 dsh 时，隔离配置 + 真实 CLI / 本地 SSE 验证
 npm run dist     # macOS 目录版
 npm run dist:all # 多平台打包，取决于本机工具链
 ```
 
 本版验证（2026-10-26）：
 
-- **225 项单元 / 集成测试通过，68 项 Electron 下拉与页面检查通过。**
+- **233 项单元 / 集成测试通过，85 项 Electron 下拉与页面检查通过。**
+- DeepSeek Harness `0.2.1-rc.2`：真实 CLI 通过 BaiUse 调用 DeepSeek V4.1 Flash，精确返回测试标记；隔离测试保留工具定义及 131072 输出预算。未改写用户正在使用的 Harness 配置。
 - 本轮 8 个已登录渠道分别测试；移除有道龙虾后，7 个保留渠道中 6 个已获真实回复，ZCode 的 Flash 无正文、普通版并发限流。MiniMax 签到领取 400 积分后恢复回复，Qoder 中国版领取 100 credits。该结果不代表每个渠道的所有模型均可用。
 - 真实 CodeArts / DeepSeek 对话、Responses SSE、Messages、Chat、Gemini 接口已验证；真实 Codex CLI 文本和终端工具闭环通过。
 - 多厂商配额切换通过本地 CodeArts → TRAE 夹具验证，覆盖五类协议；不宣称已使用未授权的真实 TRAE 账号。
@@ -253,4 +265,4 @@ docs/         接入说明、设计与验证记录
 
 ## 许可
 
-项目自有代码采用 [MIT License](LICENSE)。`vendor/` 中的渠道适配代码源自 [dsh-our-free-model](https://github.com/Ebony-Vinyl/dsh-our-free-model) 及其上游，仍受各自许可约束。产品名与商标归各自权利人所有；本项目不是这些厂商的官方客户端。
+项目自有代码采用 [MIT License](LICENSE)。`vendor/` 中的渠道适配代码源自 [dsh-our-free-model](https://github.com/Ebony-Vinyl/dsh-our-free-model) 及其上游，仍受各自许可约束。[客户端官方图标来源](ui/assets/clients/README.md) 单独列明；这些图标不属于本项目的原创素材。产品名与商标归各自权利人所有；本项目不是这些厂商的官方客户端。

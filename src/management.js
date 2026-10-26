@@ -35,6 +35,7 @@
  * | GET  | `/api/recipe` | 生成 Codex 接入配方 |
  */
 
+import { maskHarnessPreview } from './clients/harness.mjs'
 import { connect as codexConnect, disconnect as codexDisconnect, getStatus as codexStatus, preview as codexPreview, PROVIDER_ID as CODEX_PROVIDER_ID } from './codex/config.mjs'
 import { captureCurrentAuth, clearApiKeyAuth, listAccounts as listCodexAccounts, pollDeviceLogin, refreshAccount as refreshCodexAccount, removeAccount as removeCodexAccount, startDeviceLogin, switchAccount } from './codex/accounts.mjs'
 import { activateProfile, listProfiles, purgeProviderConfig, removeProfile, restoreConfig, saveProfile } from './codex/profiles.mjs'
@@ -418,6 +419,7 @@ export function createManagementHandler({ app, apiKey }) {
       if (action !== 'restore' && !clientModels().some(row => row.id === options.model)) {
         throw Object.assign(new Error('模型已不在可用目录中，请刷新后重新选择'), { status: 400 })
       }
+      options.modelInfo = clientModels().find(row => row.id === options.model) ?? {}
       let result
       if (action === 'preview') result = clientPreview(id, options)
       else if (action === 'restore') result = restoreClient(id, options)
@@ -431,6 +433,7 @@ export function createManagementHandler({ app, apiKey }) {
           .replace(/("[^"\n]*(?:key|token|secret|password)[^"\n]*"\s*:\s*)"[^"\n]*"/gi, '$1"••••••••"')
           .replace(/^(\s*(?:export\s+)?[\w.-]*(?:key|token|secret|password)[\w.-]*\s*=\s*)(?:"(?:\\.|[^"\n])*"|'[^'\n]*'|[^\s#]+)/gim, '$1"••••••••"') }))
       }
+      if (action === 'preview' && body?.reveal !== true && id === 'deepseek-harness') result.files = result.files.map(file => ({ ...file, content: /\.ya?ml$/.test(file.path) ? maskHarnessPreview(file.content) : file.content }))
       sendJson(res, 200, { ...result, clients: clientRecords() })
       return true
     }

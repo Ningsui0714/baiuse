@@ -124,7 +124,7 @@ test('所有客户端配置均接受账号渠道的 DeepSeek 模型，而非只�
   }
 })
 
-test('五个客户端共享应用内统一模型选择器，不显示厂商前缀', () => {
+test('所有客户端共享应用内统一模型选择器，不显示厂商前缀', () => {
   const elements = new Map()
   const element = id => {
     if (!elements.has(id)) elements.set(id, { innerHTML:'', value:'', dataset:{}, listeners:{}, setAttribute(){}, addEventListener(event, handler){this.listeners[event]=handler} })
@@ -507,7 +507,7 @@ test('CountTokens compatibility is explicitly an estimate and does not invoke up
 test('Management: list/preview/connect/restore auth, masking, model validation and desktop runtime mapping',async t=>{
   const g=await gateway(t)
   assert.equal((await g.call('/api/clients',null,{},'GET')).status,401)
-  const list=await g.call('/api/clients',null,undefined,'GET');assert.equal((await list.json()).clients.length,5)
+  const list=await g.call('/api/clients',null,undefined,'GET');assert.equal((await list.json()).clients.length,CLIENTS.length)
   const preview=await g.call('/api/clients/claude/preview',{model:'demo/model'})
   const payload=await preview.json()
   assert.match(payload.files[0].content,/••••••••/);assert.doesNotMatch(payload.files[0].content,/test-local-key/)
@@ -533,6 +533,37 @@ test('新接入配置写稳定逻辑标识，旧厂商前缀请求也会转换',
   const config=readJson(path.join(g.options.home,'.claude/settings.json'))
   assert.equal(config.env.ANTHROPIC_MODEL,id)
   assert.equal(config.env.ANTHROPIC_DEFAULT_SONNET_MODEL,id)
+})
+
+test('Harness management: masked YAML previews, catalogue output budget, connect and restore',async t=>{
+  const g=await gateway(t),file=path.join(g.options.home,'.dsh/profiles/web/cordis.patch.yml')
+  const before='- id: other-plugin\n  config: {apiKey: private-fixture-key, GITHUB_TOKEN: private-fixture-token}\n'
+  write(file,before)
+  g.app.lanes.clientModelRows=()=>[{id:'model',context_window:524288,routes:[{max_tokens:131072},{max_tokens:131072}]}]
+  let response=await g.call('/api/clients/deepseek-harness/preview',{model:'demo/model'})
+  assert.equal(response.status,200)
+  const preview=await response.json(),yaml=preview.files.find(f=>f.path===file).content
+  assert.match(yaml,/••••••••/);assert.match(yaml,/maxTokens: 131072/)
+  assert.match(yaml,/apiKeyEnv: BAIUSE_API_KEY/)
+  for(const f of preview.files)assert.doesNotMatch(f.content,/private-fixture-key|private-fixture-token|test-local-key/)
+  assert.equal(read(file),before)
+  response=await g.call('/api/clients/deepseek-harness/preview',{model:'demo/model',reveal:true})
+  assert.match((await response.json()).files.find(f=>f.path===file).content,/private-fixture-key/)
+  assert.equal((await g.call('/api/clients/deepseek-harness/connect',{model:'demo/model'})).status,200)
+  assert.match(read(file),/provider: baiuse/)
+  assert.equal((await g.call('/api/clients/deepseek-harness/restore',{})).status,200)
+  assert.equal(read(file),before)
+  assert.equal(fs.existsSync(path.join(g.options.home,'.dsh/.env')),false)
+})
+
+test('Packaged official client images use browser image MIME types',async t=>{
+  const g=await gateway(t)
+  for(const [file,type] of [['codex.png','image/png'],['claude-code.svg','image/svg+xml'],['claude-desktop.png','image/png'],['gemini-cli.png','image/png'],['opencode.svg','image/svg+xml'],['deepseek-harness.svg','image/svg+xml']]) {
+    const response=await g.call(`/app/assets/clients/${file}`,null,{},'GET')
+    assert.equal(response.status,200,file)
+    assert.equal(response.headers.get('content-type').split(';')[0],type,file)
+    assert.ok((await response.arrayBuffer()).byteLength>100,file)
+  }
 })
 
 test('Gemini function schemas normalize enum type casing recursively',()=>{
@@ -593,4 +624,53 @@ test('Pending partial multi-file journal can be restored after an interrupted wr
 test('Backup journals containing credentials are owner-readable only',t=>{
   const o=fixture(t);connectClient('claude',o)
   if(process.platform!=='win32') assert.equal(fs.statSync(path.join(o.dataDir,'client-backups/claude.json')).mode&0o777,0o600)
+})
+
+test('Harness: merge YAML profiles and .env, preserve plugins/other providers and official auth; restore bytes',async t=>{
+  const {parseDocument}=await import('yaml')
+  const o=fixture(t),dir=path.join(o.home,'.dsh'),file=path.join(dir,'profiles/web/cordis.patch.yml')
+  const before='# Keep my providers\n- id: llm-pi-ai\n  config:\n    retryPolicy: aggressive\n    providers:\n      custom: {api: openai-completions, apiKeyEnv: MY_KEY}\n- id: agent-default-model\n  config: {provider: old, model: old-model, reasoningEffort: max}\n- id: my-mcp\n  config: {command: local}\n'
+  write(file,before);write(path.join(dir,'.env'),'# existing\nOTHER_KEY=untouched\n');write(path.join(dir,'.credentials.yaml'),'fixture official credentials unchanged')
+  connectClient('deepseek-harness',{...o,modelInfo:{context_window:524288,max_tokens:131072,vision:true}})
+  const rows=parseDocument(read(file)).toJS(),pi=rows.find(r=>r.id==='llm-pi-ai').config
+  assert.equal(pi.providers.baiuse.displayName,'BaiUse');assert.equal(pi.providers.baiuse.apiKeyEnv,'BAIUSE_API_KEY');assert.equal(pi.providers.baiuse.baseURL,o.gatewayUrl+'/v1')
+  assert.deepEqual(pi.providers.baiuse.models[0].input,['text','image']);assert.equal(pi.providers.baiuse.models[0].maxTokens,131072)
+  assert.equal(pi.retryPolicy,'aggressive');assert.ok(pi.providers.custom);assert.match(read(file),/# Keep my providers/)
+  assert.equal(rows.find(r=>r.id==='agent-default-model').config.reasoningEffort,undefined)
+  assert.equal(rows.find(r=>r.id==='my-mcp').config.command,'local');assert.match(read(path.join(dir,'.env')),/OTHER_KEY=untouched/)
+  assert.equal(read(path.join(dir,'.credentials.yaml')),'fixture official credentials unchanged')
+  assert.equal(fs.statSync(file).mode&0o777,0o600)
+  restoreClient('deepseek-harness',o);assert.equal(read(file),before);assert.equal(read(path.join(dir,'.env')),'# existing\nOTHER_KEY=untouched\n')
+  assert.equal(fs.existsSync(path.join(dir,'profiles/desktop/cordis.patch.yml')),false)
+})
+test('Harness: later unrelated YAML edits and sequence reordering survive selective restore',async t=>{
+  const {parseDocument}=await import('yaml')
+  const o=fixture(t),file=path.join(o.home,'.dsh/profiles/web/cordis.patch.yml')
+  connectClient('deepseek-harness',o)
+  const doc=parseDocument(read(file));doc.add(doc.createNode({id:'later-plugin',config:{keep:true}}));doc.contents.items.reverse();write(file,String(doc))
+  restoreClient('deepseek-harness',o)
+  assert.deepEqual(parseDocument(read(file)).toJS(),[{id:'later-plugin',config:{keep:true}}])
+})
+test('Harness: competing edits preserve backup; malformed YAML causes no partial client writes',async t=>{
+  const {parseDocument}=await import('yaml')
+  const o=fixture(t),dir=path.join(o.home,'.dsh'),web=path.join(dir,'profiles/web/cordis.patch.yml'),desktop=path.join(dir,'profiles/desktop/cordis.patch.yml')
+  write(desktop,'- id: [broken\n')
+  assert.throws(()=>connectClient('deepseek-harness',o),/解析失败/);assert.equal(fs.existsSync(web),false);assert.equal(fs.existsSync(path.join(dir,'.env')),false)
+  fs.rmSync(desktop);connectClient('deepseek-harness',o)
+  const doc=parseDocument(read(web));doc.setIn([0,'config','providers','baiuse','baseURL'],'https://changed.example/v1');write(web,String(doc))
+  assert.throws(()=>restoreClient('deepseek-harness',o),/还原冲突/)
+  assert.ok(fs.existsSync(path.join(o.dataDir,'client-backups/deepseek-harness.json')))
+})
+test('Harness: DSH_HOME and initialized CLI profiles are honored without touching custom bot profiles',t=>{
+  const o=fixture(t),root=path.join(o.home,'custom-harness');o.env.DSH_HOME='~/custom-harness'
+  for(const p of ['tui','headless','bot'])write(path.join(root,'profiles',p,'cordis.yml'),'{}\n')
+  const paths=clientPreview('deepseek-harness',o).files.map(f=>f.path)
+  for(const p of ['web','desktop','tui','headless'])assert.ok(paths.includes(path.join(root,'profiles',p,'cordis.patch.yml')))
+  assert.ok(!paths.includes(path.join(root,'profiles/bot/cordis.patch.yml')))
+  assert.ok(paths.includes(path.join(root,'.env')))
+})
+test('Harness preview masks unrelated inline YAML secrets without losing provider credential references',async()=>{
+  const {maskHarnessPreview}=await import('./harness.mjs')
+  const text=maskHarnessPreview('- id: custom\n  config:\n    apiKey: fixture-inline-secret\n    env:\n      GITHUB_TOKEN: fixture-github-secret\n    apiKeyEnv: BAIUSE_API_KEY\n    maxTokens: 131072\n')
+  assert.doesNotMatch(text,/fixture-inline-secret|fixture-github-secret/);assert.match(text,/BAIUSE_API_KEY/);assert.match(text,/maxTokens: 131072/)
 })

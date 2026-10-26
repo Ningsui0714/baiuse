@@ -56,18 +56,14 @@ main > section { animation:arrive .23s ease-out; }
 .route-art > svg { width:100%; height:100%; }
 .art-mark { position:absolute; right:22px; top:30px; width:62px; height:62px; display:grid; place-items:center; color:#448df7; background:#f2f8ff; border:1px solid #c5deff; border-radius:13px; box-shadow:0 9px 26px #6da6f325; font-size:35px; }
 .art-mark svg { width:36px; height:36px; }
-.client-tabs { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:11px; margin-bottom:18px; }
-.client-tab { display:flex; align-items:center; justify-content:center; gap:11px; min-height:73px; padding:12px 9px; color:#425b80; background:white; border:1px solid var(--border); border-radius:10px; font-size:12px; font-weight:550; cursor:pointer; transition:all .15s; }
+.client-tabs { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:11px; margin-bottom:18px; }
+.client-tab { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; min-height:100px; padding:15px 8px; color:#425b80; background:white; border:1px solid var(--border); border-radius:10px; font-size:12px; font-weight:550; cursor:pointer; transition:all .15s; }
 .client-tab:hover { border-color:#a1c6ff; transform:translateY(-2px); }
 .client-tab.selected { border-color:#4585ff; background:#f8fbff; color:#246eef; box-shadow:0 0 0 1px #4585ff18,0 4px 12px #3f7eea09; }
 .client-icon { width:34px; height:34px; flex:none; display:inline-grid; place-items:center; }
-.client-icon svg { width:31px; height:31px; }
-.client-icon.codex { background:#242c39; color:white; border-radius:9px; }
-.client-icon.codex svg { width:23px; height:23px; }
-.client-icon.claude { color:#dc805e; }
-.client-icon.claude-desktop { color:#332c27; background:#e3c5b0; border-radius:8px; font-family:Georgia,serif; font-weight:700; font-size:22px; }
-.client-icon.gemini { color:#5086ef; }
-.client-icon.opencode { color:#253247; }
+.client-icon img { display:block; width:100%; height:100%; object-fit:contain; }
+.client-icon.codex { background:#171717; border-radius:9px; }
+.client-icon.claude-desktop { border-radius:9px; }
 .connection-panel { padding:26px; border:1px solid #e0eaf7; border-radius:15px; background:white; box-shadow:0 5px 24px #5a84b506; }
 .connection-heading { display:flex; align-items:center; gap:17px; margin-bottom:22px; }
 .connection-heading > div { display:flex; align-items:center; gap:13px; }
@@ -382,3 +378,6 @@ select,input[type="text"],input[type="search"],input[type="password"],textarea {
 .benefit-link:hover { text-decoration:underline; color:#205fc9; }
 .benefit-link:focus-visible { outline:2px solid #7eacfa; outline-offset:3px; border-radius:3px; }
 .account-observation .account-benefit-hint { color:#6d85a7; margin-top:3px; }
+
+@media(max-width:1100px) { .client-tabs { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:650px) { .client-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } .client-tab { font-size:11px; min-height:90px; } }

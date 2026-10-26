@@ -4,7 +4,7 @@
   "private": true,
   "repository": "https://github.com/Ningsui0714/baiuse.git",
   "type": "module",
-  "description": "白用 AI · BaiUse：一键白嫖，一键接入。把免费 AI 模型接入 Codex、Claude Code、Gemini CLI 和 OpenCode，同模型额度耗尽自动切换可用渠道。",
+  "description": "白用 AI · BaiUse：一键白嫖，一键接入。把免费 AI 模型接入 Codex、Claude Code、Gemini CLI、OpenCode 和 DeepSeek Harness，同模型额度耗尽自动切换可用渠道。",
   "main": "electron/main.cjs",
   "bin": {
     "baiuse": "./src/cli.js",
@@ -16,6 +16,7 @@
     "test": "node --test src/route.test.js src/failover.test.js src/gateway.test.js src/lanes/protocol.test.js src/lanes/routing.test.js src/management.test.js src/codex/config.test.js src/codex/accounts.test.js src/codex/profiles.test.js src/clients/clients.test.mjs src/channels/channels.test.mjs src/channels/actions.test.mjs",
     "test:e2e": "node test/e2e.js",
     "test:ui": "node test/ui-dropdowns.cjs",
+    "test:harness": "node test/harness-client.mjs",
     "dist": "electron-builder --mac --dir",
     "dist:all": "electron-builder -mwl"
   },
@@ -60,6 +61,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "jsonc-parser": "^3.3.1"
+    "jsonc-parser": "^3.3.1",
+    "yaml": "^2.9.1"
   }
 }
