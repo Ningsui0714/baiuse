@@ -6,6 +6,16 @@
   const time = at => at ? new Date(at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
   const count = value => Number(value).toLocaleString('zh-CN',{maximumFractionDigits:3});
   const status = (text,kind='') => `<span class="pill ${kind}">${e(text)}</span>`;
+  function officialLinks(benefit) {
+    if(!benefit || benefit.mode==='none')return '';
+    const link=(url,label)=>{
+      try {if(new URL(url).protocol!=='https:')return '';} catch {return '';}
+      return `<a class="benefit-link" href="${e(url)}" target="_blank" rel="noopener noreferrer">${e(label)} ↗</a>`;
+    };
+    const entry=link(benefit.guideUrl??benefit.url,benefit.guideUrl?'去官方开通 / 领取':benefit.mode==='automatic'?'官方福利入口':'前往官方领取');
+    const website=benefit.guideUrl?link(benefit.url,'打开官网'):'';
+    return entry||website?`<div class="account-benefit-links">${entry}${website}</div>`:'';
+  }
   function details(account) {
     const record = data.records[account.id] ?? {}, test = record.test, claim = record.claim, balance = record.balance;
     const benefit = data.benefits[account.provider];
@@ -29,8 +39,8 @@
     return `<div class="account-details">
       <div class="account-observation"><span class="account-detail-label">连通测试</span><div>${testText}${test?.elapsedMs?` <small>${(test.elapsedMs/1000).toFixed(1)}s</small>`:''}</div>${test?.modelId?`<small>${e(test.modelId)}</small>`:''}${test?.message?`<small class="account-error">${e(test.message)}</small>`:''}${test?.at?`<small>${time(test.at)}</small>`:''}</div>
       <div class="account-observation"><span class="account-detail-label">剩余额度</span><strong>${balanceText}</strong>${packages?`<small>${packages}</small>`:''}${balance?.message?`<small class="account-error">${e(balance.message)}</small>`:''}${balance?.at?`<small>${time(balance.at)}</small>`:''}</div>
-      <div class="account-observation"><span class="account-detail-label">每日福利</span><div>${status(claimText,kind)}</div><small>${e(claim?.message || benefit?.label || '活动以渠道实际返回为准')}</small>${claim?.at?`<small>${time(claim.at)}</small>`:''}${receipt&&claim?.kind!=='claimed'?`<small>上次到账：${receipt.credit!=null?'+'+count(receipt.credit)+' '+e(receipt.unit??'积分'):'已确认领取，金额未返回'} · ${time(receipt.at)}</small>`:''}${rewardText?`<small>${e(rewardText)}</small>`:''}</div>
-      <div class="account-detail-actions">${action('test','测试此账号',`data-account-id="${e(account.id)}"`)}${benefit?.mode==='daily'?action('claim','签到此渠道',`data-account-provider="${e(account.provider)}"`):''}${account.provider==='raccoon'?action('login-reward','领取登录奖励',`data-account-id="${e(account.id)}"`):''}${benefit?.mode==='manual'&&/^https:\/\//.test(benefit.url)?`<a class="btn-ghost" href="${e(benefit.url)}" target="_blank" rel="noopener noreferrer">前往官方领取 ↗</a>`:''}</div>
+      <div class="account-observation"><span class="account-detail-label">每日福利</span><div>${status(claimText,kind)}</div><small>${e(claim?.message || benefit?.label || '活动以渠道实际返回为准')}</small>${claim?.at?`<small>${time(claim.at)}</small>`:''}${receipt&&claim?.kind!=='claimed'?`<small>上次到账：${receipt.credit!=null?'+'+count(receipt.credit)+' '+e(receipt.unit??'积分'):'已确认领取，金额未返回'} · ${time(receipt.at)}</small>`:''}${rewardText?`<small>${e(rewardText)}</small>`:''}${benefit?.guideHint?`<small class="account-benefit-hint">${e(benefit.guideHint)}</small>`:''}${officialLinks(benefit)}</div>
+      <div class="account-detail-actions">${action('test','测试此账号',`data-account-id="${e(account.id)}"`)}${benefit?.mode==='daily'?action('claim','签到此渠道',`data-account-provider="${e(account.provider)}"`):''}${account.provider==='raccoon'?action('login-reward','领取登录奖励',`data-account-id="${e(account.id)}"`):''}</div>
     </div>`;
   }
   function render() {

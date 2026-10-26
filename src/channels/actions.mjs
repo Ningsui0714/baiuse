@@ -4,8 +4,8 @@ import crypto from 'node:crypto'
 
 export const BENEFITS = {
   codearts: {mode:'daily',label:'每日活动积分',url:'https://codearts.huaweicloud.com/'},
-  qoder: {mode:'daily',unit:'credits',label:'每日活动额度',url:'https://qoder.com/'},
-  qodercn: {mode:'daily',unit:'credits',label:'每日活动额度',url:'https://qoder.cn/'},
+  qoder: {mode:'daily',unit:'credits',label:'每日活动额度',url:'https://qoder.com/',guideUrl:'https://docs.qoder.com/events/100credits',guideHint:'需在 Qoder 官方桌面客户端操作：左下角用量（Usage）→ 礼物图标。完成开通或首次领取后，回来点「签到此渠道」。'},
+  qodercn: {mode:'daily',unit:'credits',label:'每日活动额度',url:'https://qoder.cn/',guideUrl:'https://docs.qoder.cn/events/100credits',guideHint:'需在 Qoder CN 官方桌面客户端操作：左下角用量面板 → 礼物图标。完成开通或首次领取后，回来点「签到此渠道」。'},
   trae: {mode:'daily',unit:'credits',label:'每日签到积分',url:'https://www.trae.cn/'},
   loomy: {mode:'daily',label:'每日额度',url:'https://loomy.xunfei.cn/'},
   minimax: {mode:'daily',label:'每日签到额度',url:'https://agent.minimax.cn/'},

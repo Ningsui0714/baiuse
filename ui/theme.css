@@ -377,3 +377,8 @@ select,input[type="text"],input[type="search"],input[type="password"],textarea {
 .benefits-receipts { color:#3e6da8; font-size:12px; font-weight:550; margin-top:17px; }
 .retired-channel-notice { display:flex; flex-direction:column; gap:5px; padding:14px 18px; margin-bottom:18px; color:#987147; background:#fffaf0; border:1px solid #efe2c9; border-radius:10px; font-size:11px; line-height:1.7; }
 .retired-channel-notice strong { color:#87623d; font-size:12px; }
+.account-benefit-links { display:flex; flex-wrap:wrap; gap:7px 13px; margin-top:3px; }
+.benefit-link { color:#377df4; font-size:11px; line-height:1.8; text-decoration:none; }
+.benefit-link:hover { text-decoration:underline; color:#205fc9; }
+.benefit-link:focus-visible { outline:2px solid #7eacfa; outline-offset:3px; border-radius:3px; }
+.account-observation .account-benefit-hint { color:#6d85a7; margin-top:3px; }

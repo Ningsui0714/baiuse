@@ -17,12 +17,13 @@ const root = path.resolve(__dirname, '..')
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-ui-dropdowns-'))
 app.setPath('userData', userData)
 const channels = ['codearts', 'trae', 'copilot', 'gemini', 'qwen', 'kimi', 'codex']
-const errors = [], writes = [], actionRequests = []
+const errors = [], writes = [], actionRequests = [], externalLinks = []
 let server, win
 const deadline = setTimeout(() => { console.error('UI test timed out'); app.exit(1) }, 25000)
 
 app.whenReady().then(async () => {
   try {
+    const {BENEFITS}=await import('../src/channels/actions.mjs')
     server = http.createServer((req, res) => {
       const url = new URL(req.url, 'http://fixture')
       const fixtures = {
@@ -39,7 +40,7 @@ app.whenReady().then(async () => {
           {id:'ofm',name:'Local fixture',builtin:true,wireApi:'responses'},
           {id:'chat-fixture',name:'Chat fixture',wireApi:'chat'},
         ]},
-        '/api/account-actions': {records:{fixture:{test:{ok:true,modelId:'codearts/fixture-flash',elapsedMs:2500,at:'2026-10-26T06:00:00Z'},claim:{kind:'claimed',credit:1000,unit:'积分',date:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai'}).format(new Date()),at:'2026-10-26T06:00:00Z'},balance:{value:{total:1234,unit:'积分'}}}},benefits:{codearts:{mode:'daily',label:'每日活动积分'}},autoCheckin:{enabled:true,lastResult:'演示结果'}},
+        '/api/account-actions': {records:{fixture:{test:{ok:true,modelId:'codearts/fixture-flash',elapsedMs:2500,at:'2026-10-26T06:00:00Z'},claim:{kind:'claimed',credit:1000,unit:'积分',date:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai'}).format(new Date()),at:'2026-10-26T06:00:00Z'},balance:{value:{total:1234,unit:'积分'}}}},benefits:BENEFITS,autoCheckin:{enabled:true,lastResult:'演示结果'}},
         '/api/clients': {clients:[{id:'codex',paths:['/example/.codex/config.toml']}]},
       }
       if(req.method==='POST' && url.pathname.startsWith('/api/account-actions/')) {
@@ -71,6 +72,7 @@ app.whenReady().then(async () => {
       preload:path.join(root,'electron/preload.cjs'),additionalArguments:['--ofm-api-key=ui-fixture-key'],
       contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,
     }})
+    win.webContents.setWindowOpenHandler(({url})=>{externalLinks.push(url);return {action:'deny'}})
     win.webContents.on('console-message', event => {
       if (event.level === 'error') errors.push(event.message)
     })
@@ -79,6 +81,7 @@ app.whenReady().then(async () => {
     assert.equal(writes.length,0,`Unexpected writes: ${writes}`)
     assert.deepEqual(actionRequests,[{path:'/api/account-actions/test',body:{accountId:'fixture'}},{path:'/api/account-actions/claim',body:{provider:'codearts'}},{path:'/api/account-actions/auto',body:{enabled:false}}])
     assert.deepEqual(errors,[])
+    assert.deepEqual(externalLinks,['https://docs.qoder.com/events/100credits'])
     if (process.env.RELAY_UI_SCREENSHOTS) {
       const directory=path.resolve(process.env.RELAY_UI_SCREENSHOTS)
       fs.mkdirSync(directory,{recursive:true})
@@ -201,6 +204,15 @@ async function exercise() {
   check(!el('testAllAccountsBtn').disabled,'A finished task re-enables actions')
   el('accountList').querySelector('[data-account-task="claim"]').click();await tick();await tick()
   el('autoCheckinToggle').click();await tick();await tick()
+  const benefitLinks=document.createElement('div');benefitLinks.innerHTML=accountActions.details({id:'qoder-link-fixture',provider:'qoder',authenticated:true,enabled:true});document.body.append(benefitLinks)
+  const qoderLink=benefitLinks.querySelector('a');
+  check(qoderLink.href==='https://docs.qoder.com/events/100credits' && qoderLink.textContent.includes('开通 / 领取'),'Qoder links directly to the official claim guide')
+  check(qoderLink.target==='_blank' && qoderLink.rel.includes('noreferrer'),'Official links open externally without referring local context')
+  check(benefitLinks.textContent.includes('Usage') && benefitLinks.textContent.includes('礼物图标'),'Qoder shows the actual desktop-only claim location')
+  qoderLink.click();await tick();benefitLinks.remove()
+  const regionLinks=document.createElement('div');regionLinks.innerHTML=accountActions.details({id:'cn-link-fixture',provider:'qodercn',authenticated:true,enabled:true});
+  check(regionLinks.querySelector('a').href==='https://docs.qoder.cn/events/100credits','Qoder CN keeps its own official claim link')
+  check(el('accountList').querySelector('a[href="https://codearts.huaweicloud.com/"]')!==null,'Other daily-benefit accounts also expose an official entry')
   // Ensure option labels are text, not executable markup.
   AppSelect.setOptions('providerSelect',[{value:'fixture',label:'<img src=x onerror=alert(1)>'}])
   document.querySelector('[data-tab="accounts"]').click();open('providerSelect')

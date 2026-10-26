@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {createAccountActions,chooseProbeModel,normalizeBalance} from './actions.mjs'
+import {BENEFITS,createAccountActions,chooseProbeModel,normalizeBalance} from './actions.mjs'
 import {probeAccount} from './probe.mjs'
 
 function fixture(t,providers=['codearts','zcode','raccoon']) {
@@ -113,4 +113,15 @@ test('一次性登录奖励缺少回执时不冒充已领取',async t=>{
   channels.rpc=o=>o.method==='onboarding.claim'?Promise.resolve({ok:true,value:{}}):rpc(o)
   await service.start('login-reward');const s=await done(service)
   assert.equal(s.records.raccoon.reward.kind,'failed');assert.match(s.records.raccoon.reward.message,/未取得/)
+})
+
+
+test('首次领取引导按 Qoder 国际版与中国版区分，不伪造网页领取或应用 deep link',()=>{
+  assert.equal(BENEFITS.qoder.guideUrl,'https://docs.qoder.com/events/100credits')
+  assert.equal(BENEFITS.qodercn.guideUrl,'https://docs.qoder.cn/events/100credits')
+  for(const provider of ['qoder','qodercn']) {
+    assert.equal(new URL(BENEFITS[provider].guideUrl).protocol,'https:')
+    assert.match(BENEFITS[provider].guideHint,/官方桌面客户端/)
+    assert.match(BENEFITS[provider].guideHint,/礼物图标/)
+  }
 })
