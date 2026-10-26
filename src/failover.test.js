@@ -21,6 +21,43 @@ const MODELS = [
   { id: 'qoder/glm-5', owned_by: 'qoder' },
 ]
 
+test('同一配置使用逻辑模型，额度耗尽自动切日期变体；新增渠道无需重启', async () => {
+  const rows=[{id:'codearts/deepseek-v4.1-flash'}], seen=[]
+  const complete=createFailoverComplete({modelRows:async()=>rows,baseComplete:async(request,onChunk)=>{
+    seen.push(request.model)
+    if(request.model.startsWith('codearts/'))throw Object.assign(new Error('quota exhausted'),{status:429})
+    onChunk({type:'text-delta',text:'ok'});return {text:'ok'}
+  }})
+  await assert.rejects(()=>complete({model:'deepseek-v4.1-flash'},()=>{}),/quota/)
+  rows.push({id:'trae/DeepSeekV4.1 Flash 1017'})
+  const response=await complete({model:'codearts/deepseek-v4.1-flash'},()=>{})
+  assert.equal(response.text,'ok')
+  assert.deepEqual(seen,['codearts/deepseek-v4.1-flash','codearts/deepseek-v4.1-flash','trae/DeepSeekV4.1 Flash 1017'])
+})
+
+test('默认尝试所有同模型渠道一次，不只尝试四条，也不重复消耗已失败渠道', async () => {
+  const rows=Array.from({length:7},(_,i)=>({id:`provider${i}/deepseek-v4.1-flash`}))
+  const seen=[]
+  const complete=createFailoverComplete({modelRows:async()=>rows,baseComplete:async request=>{
+    seen.push(request.model)
+    if(request.model!==rows.at(-1).id)throw Object.assign(new Error('quota'),{status:429})
+    return {text:'last available'}
+  }})
+  assert.equal((await complete({model:'deepseek-v4.1-flash'},()=>{})).text,'last available')
+  assert.equal(seen.length,7)
+  assert.equal(new Set(seen).size,7)
+})
+
+test('跳过冷却渠道后，也不会在末尾重复调用已失败线路',async()=>{
+  const rows=[{id:'a/glm-5'},{id:'b/glm-5'},{id:'c/glm-5'}],seen=[],cooldowns=new CooldownLedger()
+  cooldowns.mark(rows[0].id,'rateLimited')
+  const complete=createFailoverComplete({modelRows:async()=>rows,cooldowns,baseComplete:async request=>{
+    seen.push(request.model);throw Object.assign(new Error('quota'),{status:429})
+  }})
+  await assert.rejects(()=>complete({model:'glm-5'},()=>{}),/quota/)
+  assert.deepEqual(seen,['b/glm-5','c/glm-5'])
+})
+
 /** 构造一个假上游：按模型名返回预设行为。 */
 function fakeComplete(behaviors) {
   return async (request, onChunk) => {

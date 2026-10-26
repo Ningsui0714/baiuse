@@ -36,7 +36,8 @@ import { Worker } from 'node:worker_threads'
 export async function createChannelRuntime({ dataDir, logger = console }) {
   const worker = new Worker(new URL('./worker.mjs', import.meta.url), {
     workerData: { dataDir },
-    execArgv: process.execArgv.filter(arg => !arg.startsWith('--input-type')),
+    // 渠道 Worker 是普通 ESM，不继承测试器/Electron 的进程专属 V8 参数。
+    execArgv: [],
     env: {
       ...process.env,
       // 上游用它放 CodeArts 的签名缓存；本 app 用自己的目录，避免与插件实例串。
@@ -54,7 +55,6 @@ export async function createChannelRuntime({ dataDir, logger = console }) {
   let readyReject
   let rows = []
   let providers = []
-  let refreshing
   let refreshTimer
 
   const ready = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject })
@@ -140,13 +140,10 @@ export async function createChannelRuntime({ dataDir, logger = console }) {
     })
   }
 
-  function refresh() {
-    if (refreshing) return refreshing
-    refreshing = call('models')
-      .then(value => { rows = value; return rows })
-      .finally(() => { refreshing = undefined })
-    return refreshing
-  }
+  const refresh = createModelRefresh(
+    () => call('models', undefined, undefined, undefined, 30000),
+    value => { rows = value },
+  )
 
   const runtime = {
     get providers() { return providers },
@@ -185,7 +182,7 @@ export async function createChannelRuntime({ dataDir, logger = console }) {
     close() {
       if (closing) return closing
       closed = true
-      clearTimeout(refreshTimer)
+      clearInterval(refreshTimer)
       rejectAll(new Error('渠道正在停止'))
       closing = (async () => {
         let timer
@@ -207,10 +204,33 @@ export async function createChannelRuntime({ dataDir, logger = console }) {
     runtime.ready = refresh().catch(error => {
       if (!closed) logger.warn?.(`渠道启动清单刷新失败：${error.message}`)
     })
+    refreshTimer = setInterval(() => {
+      void refresh().catch(error => { if (!closed) logger.warn?.(`渠道清单刷新失败：${error.message}`) })
+    }, 60000)
+    refreshTimer.unref?.()
     return runtime
   } catch (error) {
     await runtime.close()
     throw error
+  }
+}
+
+/** 合并并发刷新，但保留刷新期间的凭据变更，避免「登录好了仍只显示 Kilo」。 */
+export function createModelRefresh(load, onRows) {
+  let refreshing
+  let again = false
+  return function refresh() {
+    if (refreshing) { again = true; return refreshing }
+    refreshing = (async () => {
+      let value
+      do {
+        again = false
+        value = await load()
+        onRows(value)
+      } while (again)
+      return value
+    })().finally(() => { refreshing = undefined })
+    return refreshing
   }
 }
 

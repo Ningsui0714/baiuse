@@ -47,6 +47,7 @@ export async function startApp({ dataDir = resolveDataDir(), port, host = '127.0
     apiKey: settings.get().apiKey,
     port: listenPort,
     host,
+    desktopModel: () => settings.get().desktopModel,
     management: createManagementHandler({
       // 传函数而不是对象：网关先于 app 句柄建好，
       // 管理接口要在**请求时**才取 app（那时才存在）。

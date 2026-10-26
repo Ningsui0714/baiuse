@@ -3,7 +3,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 
 /** 独立应用凭据仓库。同步原子写入，失败冒泡；从不读取 DSH 文件。 */
-export function createCredentials(dataDir) {
+export function createCredentials(dataDir, { onChange } = {}) {
   const file = path.join(dataDir, 'channel-credentials.json')
   let values = {}
   if (fs.existsSync(file)) {
@@ -23,6 +23,8 @@ export function createCredentials(dataDir) {
       fs.writeFileSync(temp, JSON.stringify(next, null, 2), { mode: 0o600, flag: 'wx' })
       fs.renameSync(temp, file)
       values = next
+      // OAuth 在后台落盘，不经过管理 RPC；通知宿主更新统一模型目录。
+      onChange?.()
     } finally { if (fs.existsSync(temp)) fs.unlinkSync(temp) }
   }
   return {

@@ -258,7 +258,7 @@ export function connect({ dataDir, baseUrl, apiKey, model, providerId = PROVIDER
   // 只在「第一次接管」时备份：多次接管不应把备份覆盖成已接管的版本
   let backupCreated = false
   if (status.managed === false) {
-    if (before !== '') {
+    if (fs.existsSync(paths.configPath)) {
       atomicWrite(backupPath(dataDir), before)
       backupCreated = true
     }
@@ -266,7 +266,7 @@ export function connect({ dataDir, baseUrl, apiKey, model, providerId = PROVIDER
       providerId: PROVIDER_ID,
       previousProvider: status.currentProvider,
       backedUpAt: new Date().toISOString(),
-      hadConfig: before !== '',
+      hadConfig: fs.existsSync(paths.configPath),
     })
   }
 
@@ -317,6 +317,14 @@ export function disconnect({ dataDir, env, home } = {}) {
 
   const backupFile = backupPath(dataDir)
   const clean = marker?.wroteHash !== undefined && marker.wroteHash === sha256(current)
+
+  // No pre-existing file: remove only our unchanged generated configuration.
+  // An existing empty file has its own empty backup and is restored as a file.
+  if (clean && marker?.hadConfig === false && !fs.existsSync(backupFile)) {
+    fs.rmSync(paths.configPath, { force: true })
+    deleteMarker(dataDir)
+    return { status: getStatus({ dataDir, env, home }), mode: 'restored' }
+  }
 
   // ① 文件仍是「我们写下的那一份」：直接还原备份，字节级复原
   if (clean && fs.existsSync(backupFile)) {

@@ -11,6 +11,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { modelIdentity, buildModelPools } from './models.js'
 
 import {
   CooldownLedger,
@@ -25,6 +26,50 @@ import {
 /* ------------------------------------------------------------------ *
  * 候选集构建
  * ------------------------------------------------------------------ */
+
+test('DeepSeek V4.1 Flash 的空格、大小写及日期后缀归一，不混淆版本和档位', () => {
+  for (const id of ['codearts/deepseek-v4.1-flash','trae/DeepSeekV4.1 Flash 1017','cline/deepseek-v4.1-flash-20261017']) {
+    assert.equal(modelIdentity({id}),'deepseek-v4.1-flash',id)
+  }
+  assert.notEqual(modelIdentity({id:'a/deepseek-v4.1-pro'}),'deepseek-v4.1-flash')
+  assert.notEqual(modelIdentity({id:'a/deepseek-v4-flash'}),'deepseek-v4.1-flash')
+  assert.notEqual(modelIdentity({id:'a/deepseek-chat'}),'deepseek-v4.1-flash')
+  assert.notEqual(modelIdentity({id:'a/deepseek-v4.1-flash-distill'}),'deepseek-v4.1-flash')
+})
+
+test('公共目录按逻辑模型整合，保留真实路由供自动换渠道', () => {
+  const pools=buildModelPools([
+    {id:'codearts/deepseek-v4.1-flash',owned_by:'codearts',lane:'channel'},
+    {id:'trae/DeepSeek V4.1 Flash 1017',owned_by:'trae',lane:'channel'},
+    {id:'codearts/deepseek-v4.1-pro',owned_by:'codearts',lane:'channel'},
+    {id:'openrouter/free',owned_by:'kilo',lane:'kilo'},
+    {id:'kilo-auto/free',owned_by:'kilo',lane:'kilo'},
+  ])
+  assert.equal(pools.length,4)
+  assert.equal(pools[0].id,'deepseek-v4.1-flash')
+  assert.equal(pools[0].name,'DeepSeek V4.1 Flash')
+  assert.equal(pools[0].routeCount,2)
+  assert.equal(pools[0].routes[1].id,'trae/DeepSeek V4.1 Flash 1017')
+  assert.equal(pools[2].id,'openrouter/free')
+  assert.equal(pools[3].id,'kilo-auto/free')
+})
+
+test('逻辑模型和旧厂商前缀都能发现日期变体的备用渠道', () => {
+  const rows=[{id:'codearts/deepseek-v4.1-flash'},{id:'trae/deepseekv4.1 flash 1017'},{id:'trae/deepseek-v4.1-pro'}]
+  for(const model of ['deepseek-v4.1-flash','codearts/deepseek-v4.1-flash']) {
+    const candidates=buildCandidates(rows,{model})
+    assert.equal(candidates.length,2)
+    assert.equal(candidates[0].routeKey,rows[0].id)
+    assert.equal(candidates[1].routeKey,rows[1].id)
+  }
+})
+
+test('上游原生命名空间的逻辑 ID 在大小写归一后仍可路由',()=>{
+  const rows=[{id:'upstream-org/CamelModel',owned_by:'kilo',lane:'kilo'}]
+  const candidates=buildCandidates(rows,{model:buildModelPools(rows)[0].id})
+  assert.equal(candidates.length,1)
+  assert.equal(candidates[0].routeKey,'upstream-org/CamelModel')
+})
 
 test('buildCandidates: 精确匹配 provider/model 优先于同名裸模型', () => {
   const rows = [

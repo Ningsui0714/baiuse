@@ -37,15 +37,18 @@ import http from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { createFailoverComplete, isCodexClientRequest } from './failover.js'
 import { CooldownLedger, SessionAffinity } from './route.js'
+import { clientRoute, serveClientInference } from './clients/protocols.mjs'
+import { DESKTOP_MODEL } from './clients/config.mjs'
+import { createResponseAssembler } from './clients/responses.mjs'
 
-/** 读取请求体，带上限保护。 */
-function readBody(req, limitBytes = 32 * 1024 * 1024) {
+/** 完整读取请求体；默认不加网关级大小截断，可按需显式传入字节上限。 */
+function readBody(req, limitBytes = 0) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let size = 0
     req.on('data', chunk => {
       size += chunk.length
-      if (size > limitBytes) {
+      if (limitBytes > 0 && size > limitBytes) {
         reject(Object.assign(new Error('请求体过大'), { statusCode: 413 }))
         req.destroy()
         return
@@ -64,6 +67,11 @@ function flattenHeaders(nodeHeaders) {
     headers[key.toLowerCase()] = Array.isArray(value) ? value.join(', ') : value
   }
   return headers
+}
+
+// Gemini's SDK accepts an API key query parameter as well as x-goog-api-key.
+function urlKey(req) {
+  return new URL(req.url ?? '/', 'http://localhost').searchParams.get('key')
 }
 
 /** 生成一个短的随机 id（OpenAI 风格）。 */
@@ -89,12 +97,14 @@ export async function startGateway({
   apiKey = '',
   port = 48760,
   host = '127.0.0.1',
-  maxAttempts = 4,
+  maxAttempts,
   management,
   onAttempt,
+  desktopModel = () => '',
 }) {
   const cooldowns = new CooldownLedger()
   const affinity = new SessionAffinity()
+  let desktopActivity = null
 
   /** 没有管理处理器时，管理路径一律 404。 */
   const managementHandler = management ?? (async (_req, res) => {
@@ -108,7 +118,9 @@ export async function startGateway({
     if (apiKey === '') return true
     const header = req.headers.authorization ?? ''
     const match = /^Bearer\s+(.+)$/i.exec(header)
-    return match !== null && match[1].trim() === apiKey
+    return (match !== null && match[1].trim() === apiKey)
+      || req.headers['x-api-key'] === apiKey || req.headers['x-goog-api-key'] === apiKey
+      || (urlKey(req) === apiKey)
   }
 
   const server = http.createServer(async (req, res) => {
@@ -149,15 +161,43 @@ export async function startGateway({
     }
 
     // ── 模型目录 ──────────────────────────────────────────────────────────
-    if (url.pathname === '/v1/models' || url.pathname === '/models') {
+    if (url.pathname === '/v1/models' || url.pathname === '/models' || url.pathname === '/claude-desktop/v1/models') {
       if (!authorized(req)) {
         res.writeHead(401, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: { message: '缺少或错误的 API Key', type: 'authentication_error' } }))
         return
       }
-      const rows = lanes.modelRows()
+      const rows = url.pathname.startsWith('/claude-desktop/') ? (desktopModel() ? [{ id: DESKTOP_MODEL, type: 'model', display_name: desktopModel(), created_at: '2026-01-01T00:00:00Z' }] : []) : (lanes.clientModelRows?.() ?? lanes.modelRows())
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ object: 'list', data: rows }))
+      res.end(JSON.stringify({ object: 'list', data: rows, has_more: false, first_id: rows[0]?.id ?? null, last_id: rows.at(-1)?.id ?? null }))
+      return
+    }
+
+    let nativeRoute
+    try { nativeRoute = clientRoute(url.pathname) } catch {
+      res.writeHead(400, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { type: 'invalid_request_error', message: '模型路径编码不合法' } }))
+      return
+    }
+    if (nativeRoute) {
+      if (!authorized(req)) {
+        res.writeHead(401, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: '缺少或错误的 API Key' } }))
+        return
+      }
+      if (req.method !== 'POST') { res.writeHead(405, { allow: 'POST' }); res.end(); return }
+      try {
+        const body = JSON.parse((await readBody(req)).toString('utf8'))
+        if (!body || Array.isArray(body) || typeof body !== 'object') throw Object.assign(new Error('请求体应为 JSON 对象'), { status: 400 })
+        const mappedModel = desktopModel()
+        const ok = await serveClientInference({ req, res, route: nativeRoute, body, lanes, cooldowns, affinity, maxAttempts, onAttempt, headers, desktopModel: mappedModel })
+        if (ok && nativeRoute.desktop && !nativeRoute.countTokens) desktopActivity = { at: new Date().toISOString(), model: mappedModel }
+      } catch (error) {
+        const raw = error.status ?? error.statusCode
+        const status = error instanceof SyntaxError ? 400 : Number.isInteger(raw) && raw >= 400 && raw <= 599 ? raw : 502
+        res.writeHead(status, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ type: 'error', error: { type: status < 500 ? 'invalid_request_error' : 'api_error', message: error.message } }))
+      }
       return
     }
 
@@ -212,134 +252,28 @@ export async function startGateway({
     const responseId = shortId('resp')
     const createdAt = Math.floor(Date.now() / 1000)
 
-    // ── 流式：先发响应头，再逐事件 ──────────────────────────────────────
     if (streaming) {
       res.writeHead(200, {
         'content-type': 'text/event-stream; charset=utf-8',
         'cache-control': 'no-cache',
         connection: 'keep-alive',
       })
-      writeSse(res, 'response.created', {
-        type: 'response.created',
-        response: { id: responseId, object: 'response', created_at: createdAt, status: 'in_progress', model: body.model, output: [] },
-      })
-      writeSse(res, 'response.output_item.added', {
-        type: 'response.output_item.added',
-        output_index: 0,
-        item: { id: shortId('msg'), type: 'message', role: 'assistant', status: 'in_progress', content: [] },
-      })
     }
-
-    const state = { text: '', usage: undefined, toolIndex: 0 }
-
+    const assembled = createResponseAssembler({
+      responseId, model: body.model, createdAt,
+      emit: streaming ? (event, value) => writeSse(res, event, value) : undefined,
+    })
+    assembled.start()
     try {
-      const result = await complete({ model: body.model, headers }, chunk => {
-        if (chunk.type === 'text-delta') {
-          state.text += chunk.text ?? ''
-          if (streaming) {
-            writeSse(res, 'response.output_text.delta', {
-              type: 'response.output_text.delta',
-              output_index: 0,
-              content_index: 0,
-              delta: chunk.text ?? '',
-            })
-          }
-          return
-        }
-        if (chunk.type === 'reasoning-delta') {
-          if (streaming) {
-            writeSse(res, 'response.reasoning_summary_text.delta', {
-              type: 'response.reasoning_summary_text.delta',
-              output_index: 0,
-              summary_index: 0,
-              delta: chunk.text ?? '',
-            })
-          }
-          return
-        }
-        if (chunk.type === 'tool-call-delta') {
-          if (streaming) {
-            writeSse(res, 'response.function_call_arguments.delta', {
-              type: 'response.function_call_arguments.delta',
-              output_index: 0,
-              item_id: chunk.id ?? 'fc',
-              delta: chunk.argumentsDelta ?? '',
-            })
-          }
-          return
-        }
-        if (chunk.type === 'usage') {
-          state.usage = chunk.usage
-          return
-        }
-        if (chunk.type === 'finish') {
-          // 不少上游把 usage 挂在结束帧上（Chat 的最后一个 chunk）。
-          // 不收的话 Codex 看到的是 0 token —— 上下文占用算不出来，
-          // 自动压缩也就不会触发。
-          if (chunk.usage !== undefined) state.usage = chunk.usage
-        }
-      })
-
-      const usage = state.usage ?? result?.usage
+      const result = await complete({ model: body.model, headers }, assembled.consume)
+      const response = assembled.finish(result)
       if (streaming) {
-        writeSse(res, 'response.output_text.done', {
-          type: 'response.output_text.done',
-          output_index: 0,
-          content_index: 0,
-          text: state.text,
-        })
-        writeSse(res, 'response.output_item.done', {
-          type: 'response.output_item.done',
-          output_index: 0,
-          item: {
-            id: shortId('msg'),
-            type: 'message',
-            role: 'assistant',
-            status: 'completed',
-            content: [{ type: 'output_text', text: state.text, annotations: [] }],
-          },
-        })
-        writeSse(res, 'response.completed', {
-          type: 'response.completed',
-          response: {
-            id: responseId,
-            object: 'response',
-            created_at: createdAt,
-            status: 'completed',
-            model: body.model,
-            output: [{
-              id: shortId('msg'),
-              type: 'message',
-              role: 'assistant',
-              status: 'completed',
-              content: [{ type: 'output_text', text: state.text, annotations: [] }],
-            }],
-            usage: usage ?? { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
-          },
-        })
         res.write('data: [DONE]\n\n')
         res.end()
-        return
+      } else {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(response))
       }
-
-      // ── 非流式 ──────────────────────────────────────────────────────────
-      const text = state.text ?? result?.text ?? ''
-      res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({
-        id: responseId,
-        object: 'response',
-        created_at: createdAt,
-        status: 'completed',
-        model: body.model,
-        output: [{
-          id: shortId('msg'),
-          type: 'message',
-          role: 'assistant',
-          status: 'completed',
-          content: [{ type: 'output_text', text, annotations: [] }],
-        }],
-        usage: usage ?? { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
-      }))
     } catch (error) {
       if (res.headersSent) {
         // 流已经开始：只能流内报错。客户端会看到 error 事件。
@@ -366,6 +300,7 @@ export async function startGateway({
   return {
     port: actualPort,
     url: `http://${host === '::1' ? '[::1]' : host}:${actualPort}`,
+    get desktopStatus() { return desktopActivity },
     close: () => new Promise(resolve => {
       server.close(() => resolve())
       server.closeAllConnections?.()

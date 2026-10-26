@@ -50,13 +50,16 @@ export function payloadToChunk(payload) {
 
   // ── OpenAI Responses ──────────────────────────────────────────────────────
   switch (data.type) {
+    case 'response.output_item.added':
+      if (data.item?.type === 'function_call') return { type: 'tool-call-delta', index: data.output_index ?? 0, id: data.item.call_id ?? data.item.id, name: data.item.name, argumentsDelta: data.item.arguments ?? '' }
+      return undefined
     case 'response.output_text.delta':
       return { type: 'text-delta', text: data.delta ?? '' }
     case 'response.reasoning_summary_text.delta':
     case 'response.reasoning_text.delta':
       return { type: 'reasoning-delta', text: data.delta ?? '' }
     case 'response.function_call_arguments.delta':
-      return { type: 'tool-call-delta', argumentsDelta: data.delta ?? '', id: data.item_id ?? data.id }
+      return { type: 'tool-call-delta', index: data.output_index ?? 0, argumentsDelta: data.delta ?? '' }
     case 'response.completed':
       return data.response?.usage === undefined
         ? undefined
@@ -112,6 +115,9 @@ export function payloadToChunk(payload) {
   }
 
   // ── Anthropic Messages ────────────────────────────────────────────────────
+  if (data.type === 'content_block_start' && data.content_block?.type === 'tool_use') {
+    return { type: 'tool-call-delta', index: data.index ?? 0, id: data.content_block.id, name: data.content_block.name, argumentsDelta: '' }
+  }
   if (typeof data.type === 'string' && data.type.endsWith('_delta')) {
     const delta = data.delta ?? {}
     if (data.type === 'content_block_delta') {
@@ -159,6 +165,50 @@ export function payloadToChunk(payload) {
   return undefined
 }
 
+/** A single upstream frame may carry several parallel tools or a complete reply.
+ * Keep the scalar helper for compatibility; lane consumers use this lossless form.
+ */
+export function payloadToChunks(payload) {
+  let data
+  try { data = JSON.parse(payload) } catch { return [] }
+  const message = data?.choices?.[0]?.message
+  if (message) {
+    return [
+      ...(message.content ? [{ type: 'text-delta', text: message.content }] : []),
+      ...(message.tool_calls ?? []).map((call, index) => ({ type: 'tool-call-delta', index, id: call.id, name: call.function?.name, argumentsDelta: call.function?.arguments ?? '{}' })),
+      ...(data.usage ? [{ type: 'usage', usage: normalizeUsage(data.usage) }] : []),
+      { type: 'finish', reason: { kind: data.choices[0].finish_reason === 'length' ? 'max-tokens' : 'stop' } },
+    ]
+  }
+  const calls = data?.choices?.[0]?.delta?.tool_calls
+  if (calls?.length) {
+    return [
+      ...(data.choices[0].delta.content ? [{ type: 'text-delta', text: data.choices[0].delta.content }] : []),
+      ...calls.map((call, index) => ({ type: 'tool-call-delta', index: call.index ?? index, id: call.id, name: call.function?.name, argumentsDelta: call.function?.arguments ?? '' })),
+      ...(data.usage ? [{ type: 'usage', usage: normalizeUsage(data.usage) }] : []),
+    ]
+  }
+  if (data?.type === 'message' && Array.isArray(data.content)) {
+    return [
+      ...data.content.flatMap((block, index) => block.type === 'text' ? [{ type: 'text-delta', text: block.text }]
+        : block.type === 'tool_use' ? [{ type: 'tool-call-delta', index, id: block.id, name: block.name, argumentsDelta: JSON.stringify(block.input ?? {}) }] : []),
+      ...(data.usage ? [{ type: 'usage', usage: normalizeUsage(data.usage) }] : []),
+      { type: 'finish', reason: { kind: data.stop_reason === 'max_tokens' ? 'max-tokens' : 'stop' } },
+    ]
+  }
+  if (data?.object === 'response' && Array.isArray(data.output)) {
+    return [
+      ...data.output.flatMap((item, index) => item.type === 'function_call'
+        ? [{ type: 'tool-call-delta', index, id: item.call_id ?? item.id, name: item.name, argumentsDelta: item.arguments ?? '{}' }]
+        : item.type === 'message' ? (item.content ?? []).filter(part => part.type === 'output_text').map(part => ({ type: 'text-delta', text: part.text })) : []),
+      ...(data.usage ? [{ type: 'usage', usage: normalizeUsage(data.usage) }] : []),
+      { type: 'finish', reason: { kind: data.status === 'incomplete' ? 'max-tokens' : 'stop' } },
+    ]
+  }
+  const chunk = payloadToChunk(payload)
+  return chunk ? [chunk] : []
+}
+
 /**
  * 把各家 usage 的字段名归一。
  *
@@ -170,20 +220,39 @@ export function payloadToChunk(payload) {
  */
 export function normalizeUsage(usage) {
   if (usage === null || typeof usage !== 'object') return undefined
-  const input = usage.prompt_tokens ?? usage.input_tokens ?? 0
-  const output = usage.completion_tokens ?? usage.output_tokens ?? 0
+  const count = value => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0
   const cacheRead = usage.prompt_tokens_details?.cached_tokens
     ?? usage.input_tokens_details?.cached_tokens
     ?? usage.cache_read_input_tokens
+    ?? usage.cacheReadTokens
     ?? 0
+  const cacheWrite = usage.cache_creation_input_tokens ?? usage.cacheWriteTokens ?? 0
+  // 渠道包的 camelCase inputTokens 是未缓存输入；缓存读/写需计入总输入。
+  const input = count(usage.prompt_tokens ?? (usage.input_tokens !== undefined
+    ? usage.input_tokens + count(usage.cache_read_input_tokens) + count(usage.cache_creation_input_tokens)
+    : count(usage.inputTokens) + count(cacheRead) + count(cacheWrite)))
+  const output = count(usage.completion_tokens ?? usage.output_tokens ?? usage.outputTokens)
   const reasoning = usage.completion_tokens_details?.reasoning_tokens
     ?? usage.output_tokens_details?.reasoning_tokens
+    ?? usage.reasoningTokens
     ?? 0
   return {
     prompt_tokens: input,
     completion_tokens: output,
-    total_tokens: usage.total_tokens ?? input + output,
-    ...(cacheRead > 0 ? { prompt_tokens_details: { cached_tokens: cacheRead } } : {}),
-    ...(reasoning > 0 ? { completion_tokens_details: { reasoning_tokens: reasoning } } : {}),
+    total_tokens: Math.max(count(usage.total_tokens ?? usage.totalTokens), input + output),
+    ...(cacheRead > 0 ? { prompt_tokens_details: { cached_tokens: count(cacheRead) } } : {}),
+    ...(reasoning > 0 ? { completion_tokens_details: { reasoning_tokens: count(reasoning) } } : {}),
+  }
+}
+
+/** Responses 与 Chat 的 usage 字段不同，不能直接透传渠道包的内部对象。 */
+export function responsesUsage(raw) {
+  const usage = normalizeUsage(raw) ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+  return {
+    input_tokens: usage.prompt_tokens,
+    output_tokens: usage.completion_tokens,
+    total_tokens: usage.total_tokens,
+    input_tokens_details: { cached_tokens: usage.prompt_tokens_details?.cached_tokens ?? 0 },
+    output_tokens_details: { reasoning_tokens: usage.completion_tokens_details?.reasoning_tokens ?? 0 },
   }
 }

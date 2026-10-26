@@ -9,7 +9,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { responsesToChat } from './responses-to-chat.js'
-import { normalizeUsage, payloadToChunk } from './sse.js'
+import { normalizeUsage, responsesUsage, payloadToChunk } from './sse.js'
 
 /* ------------------------------------------------------------------ *
  * Responses → Chat 请求方向
@@ -238,4 +238,11 @@ test('Responses 形态的 usage 也能归一', () => {
   assert.equal(usage.completion_tokens, 20)
   assert.equal(usage.prompt_tokens_details.cached_tokens, 30)
   assert.equal(usage.completion_tokens_details.reasoning_tokens, 8)
+})
+
+test('渠道 camelCase 用量转为 Codex 可解析的 Responses usage，缓存计入输入', () => {
+  assert.deepEqual(responsesUsage({ inputTokens: 20, outputTokens: 15, cacheReadTokens: 80, cacheWriteTokens: 5, reasoningTokens: 3 }), {
+    input_tokens: 105, output_tokens: 15, total_tokens: 120,
+    input_tokens_details: { cached_tokens: 80 }, output_tokens_details: { reasoning_tokens: 3 },
+  })
 })

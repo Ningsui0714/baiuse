@@ -129,6 +129,36 @@ test('限流中的账号带出解禁时间', async () => {
   } finally { await server.close() }
 })
 
+test('账号列表区分授权状态且过滤凭据字段', async () => {
+  const app = fakeApp({ providers: ['codearts'], rpcResult: { ok: true, value: { accounts: [
+    { id: 'pending', provider: 'codearts', authenticated: false, credentialState: 'missing' },
+    { id: 'saved', provider: 'codearts', authenticated: true, credentialState: 'saved', credentialRef: 'PRIVATE_REF', access_token: 'secret' },
+  ] } } })
+  const server = await startManagement(app)
+  try {
+    const { body } = await server.call('/api/accounts')
+    assert.equal(body.accounts[0].authenticated, false)
+    assert.equal(body.accounts[1].authenticated, true)
+    assert.equal(body.accounts[0].credentialState, 'missing')
+    assert.ok(!JSON.stringify(body).includes('PRIVATE_REF'))
+    assert.ok(!JSON.stringify(body).includes('secret'))
+  } finally { await server.close() }
+})
+
+test('刷新模型目录先刷新账号渠道，再返回合并清单', async () => {
+  const app = fakeApp()
+  let refreshed = false
+  app.channels.refresh = async () => { refreshed = true }
+  app.lanes.modelRows = () => { assert.equal(refreshed, true); return [{ id: 'codearts/fixture-deepseek', lane: 'channel' }, { id: 'kilo-auto/free', lane: 'kilo' }] }
+  const server = await startManagement(app)
+  try {
+    const { status, body } = await server.call('/api/models/refresh', { method: 'POST', body: '{}' })
+    assert.equal(status, 200)
+    assert.equal(body.models[0].id, 'codearts/fixture-deepseek')
+    assert.equal(body.models.length, 2)
+  } finally { await server.close() }
+})
+
 /* ------------------------------------------------------------------ *
  * 新增账号：返回 loginUrl
  * ------------------------------------------------------------------ */

@@ -114,3 +114,13 @@ test('聚合车道总开关关闭时目录为空', () => {
   const lanes = createLanes({ channels, settings, logger: { warn() {} } })
   assert.deepEqual(lanes.modelRows(), [])
 })
+
+test('账号渠道 DeepSeek 与 Kilo、自备 Key 同时出现在统一接入目录，来源不混淆', () => {
+  const channels = fakeChannels({ providers: ['codearts'], rows: [{ id: 'codearts/fixture-deepseek', owned_by: 'codearts' }] })
+  const lanes = createLanes({ channels, settings: fakeSettings({ providers: { deepseek: { enabled: true, apiKey: 'fixture', models: ['deepseek-chat'] } } }), logger: { warn() {} } })
+  lanes.setKiloModels(['kilo-auto/free'])
+  assert.deepEqual(lanes.modelRows().map(row => [row.id, row.lane]), [
+    ['codearts/fixture-deepseek', 'channel'], ['deepseek/deepseek-chat', 'aggregate'], ['kilo-auto/free', 'kilo'],
+  ])
+  assert.equal(lanes.resolve('codearts/fixture-deepseek').lane, LANE.CHANNEL)
+})

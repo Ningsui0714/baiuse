@@ -86,11 +86,11 @@ function toError(value) {
  * @param {(request: object, onChunk: (chunk: object) => void) => Promise<object>} options.baseComplete
  *        完成函数（车道层提供），失败时抛异常
  * @param {() => Promise<readonly object[]>} options.modelRows
- *        取当前模型目录（`/v1/models` 的行），用于构建候选集
+ *        取内部真实路由目录（不是对外合并后的模型池），用于构建候选集
  * @param {object} [options.cooldowns] 冷却账本（复用同一个实例可跨请求共享冷却状态）
  * @param {object} [options.affinity]   会话粘性
  * @param {object} [options.cursor]     轮询游标
- * @param {number} [options.maxAttempts] 最大尝试次数，默认 4
+ * @param {number} [options.maxAttempts] 最大尝试次数，默认各候选最多一次
  * @param {(info: object) => void} [options.onAttempt] 每次尝试的回调（用于日志/观测）
  * @returns {(request: object, onChunk: (chunk: object) => void) => Promise<object>}
  */
@@ -100,7 +100,7 @@ export function createFailoverComplete({
   cooldowns = new CooldownLedger(),
   affinity = new SessionAffinity(),
   cursor = new RotationCursor(),
-  maxAttempts = 4,
+  maxAttempts = Infinity,
   onAttempt,
 }) {
   return async function completeWithFailover(request, onChunk) {
@@ -113,7 +113,7 @@ export function createFailoverComplete({
     const rows = await modelRows()
     const candidates = buildCandidates(rows, { model: wanted })
     if (candidates.length <= 1) {
-      return baseComplete(request, onChunk)
+      return baseComplete(candidates.length ? { ...request, model: candidates[0].routeKey } : request, onChunk)
     }
 
     const sessionKey = resolveSessionKey(request)
@@ -121,9 +121,9 @@ export function createFailoverComplete({
     const pinned = affinity.get(sessionKey)
     let lastError
 
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    for (let attempt = 0; attempt < Math.min(maxAttempts, candidates.length); attempt += 1) {
       const candidate = selectCandidate(candidates, { tried, cooldowns, cursor, pinned })
-      if (candidate === undefined) break
+      if (candidate === undefined || tried.has(candidate.id)) break
       tried.add(candidate.id)
 
       // 缓冲：换路时要把这一路已产出的内容丢掉，不能让用户看到半截回答。

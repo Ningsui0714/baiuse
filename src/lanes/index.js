@@ -43,7 +43,8 @@
 import { buildAggregateCatalog, isAggregateEntry, postAggregateStreamed } from '../../vendor/lanes/aggregate.js'
 import { postKiloStreamed } from '../../vendor/lanes/kilo.js'
 import { responsesToChat } from './responses-to-chat.js'
-import { payloadToChunk } from './sse.js'
+import { payloadToChunks } from './sse.js'
+import { buildModelPools } from '../models.js'
 
 /** 车道标识。 */
 export const LANE = Object.freeze({
@@ -88,7 +89,7 @@ export function createLanes({ channels, settings, logger = console }) {
   let kiloModels = new Set()
 
   /**
-   * 全部车道的模型目录（OpenAI `/v1/models` 的行）。
+   * 全部车道的内部真实路由目录；`clientModelRows()` 负责生成对外的统一模型池。
    *
    * ⚠️ 按 id 去重，且**聚合车道覆盖渠道车道** —— 与 `resolve()` 的优先级一致。
    * `gemini` / `minimax` 在两个来源里都有条目；若不去重，同一个 id 会出现在
@@ -98,7 +99,7 @@ export function createLanes({ channels, settings, logger = console }) {
     const byId = new Map()
 
     // 渠道包先放（会被同 id 的聚合条目覆盖）
-    for (const row of channels.publicModelRows()) byId.set(row.id, row)
+    for (const row of channels.publicModelRows()) byId.set(row.id, { ...row, lane: 'channel' })
 
     for (const entry of aggregateCatalog()) {
       byId.set(entry.id, {
@@ -106,6 +107,7 @@ export function createLanes({ channels, settings, logger = console }) {
         object: 'model',
         created: 0,
         owned_by: entry.providerId ?? 'aggregate',
+        lane: 'aggregate',
         ...(entry.contextWindow === undefined ? {} : { context_window: entry.contextWindow }),
         ...(entry.maxOutput === undefined ? {} : { max_tokens: entry.maxOutput }),
       })
@@ -113,7 +115,7 @@ export function createLanes({ channels, settings, logger = console }) {
 
     for (const id of kiloModels) {
       if (byId.has(id)) continue
-      byId.set(id, { id, object: 'model', created: 0, owned_by: 'kilo' })
+      byId.set(id, { id, object: 'model', created: 0, owned_by: 'kilo', lane: 'kilo' })
     }
 
     return [...byId.values()]
@@ -158,7 +160,9 @@ export function createLanes({ channels, settings, logger = console }) {
    * @param {AbortSignal} [signal]
    */
   async function complete(request, onChunk, signal) {
-    const { model, body, responses = false } = request
+    const { model, responses = false } = request
+    // 每次尝试使用真实 route ID，原始上下文和预算不改、不裁剪。
+    const body = { ...request.body, model }
     const route = resolve(model)
     if (route === null) {
       // ⚠️ 字段名是 `status` 不是 `statusCode` —— 网关按 `status` 读，
@@ -203,8 +207,7 @@ export function createLanes({ channels, settings, logger = console }) {
         signal,
         // 各家的流事件 → 统一 chunk。
         onData: payload => {
-          const chunk = payloadToChunk(payload)
-          if (chunk !== undefined) onChunk?.(chunk)
+          for (const chunk of payloadToChunks(payload)) onChunk?.(chunk)
         },
       })
       return { text: '', toolCalls: [], usage: undefined, truncated: false, error: undefined }
@@ -215,8 +218,7 @@ export function createLanes({ channels, settings, logger = console }) {
       body: chatBody,
       signal,
       onData: payload => {
-        const chunk = payloadToChunk(payload)
-        if (chunk !== undefined) onChunk?.(chunk)
+        for (const chunk of payloadToChunks(payload)) onChunk?.(chunk)
       },
     })
     return { text: '', toolCalls: [], usage: undefined, truncated: false, error: undefined }
@@ -225,6 +227,7 @@ export function createLanes({ channels, settings, logger = console }) {
   return {
     LANE,
     modelRows,
+    clientModelRows: () => buildModelPools(modelRows()),
     aggregateCatalog,
     complete,
     resolve,

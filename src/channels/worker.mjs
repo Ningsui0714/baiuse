@@ -23,6 +23,7 @@
  */
 
 import { parentPort, workerData } from 'node:worker_threads'
+import { accountCredentialStatus } from './account-status.mjs'
 
 import { createCredentials } from '../../vendor/channels/credentials.mjs'
 import { attachments } from '../../vendor/channels/images.mjs'
@@ -32,7 +33,6 @@ import {
   collectGatewayEffortViews,
   collectGatewayModels,
   markGatewayChannel,
-  normalizeMaxTokens,
   normalizeReasoningEffort,
   responsesMaxOutputTokens,
   responsesReasoningEffort,
@@ -51,7 +51,9 @@ const send = message => parentPort.postMessage(message)
 const logger = Object.fromEntries(
   ['info', 'warn', 'error'].map(level => [level, message => send({ type: 'log', level, message: String(message) })]),
 )
-const credentials = createCredentials(workerData.dataDir)
+const credentials = createCredentials(workerData.dataDir, {
+  onChange: () => { if (!closed) send({ type: 'changed' }) },
+})
 
 /**
  * 迷你宿主上下文。
@@ -142,7 +144,17 @@ async function rpc(call, signal) {
     body: JSON.stringify({ type: 'client-request', rpcId: 'app', method: 'channel-pack', payload: call }),
   }))
   const reply = await response.json()
-  return reply.result
+  const result = reply.result
+  if (result?.ok && call.method === 'account.list') {
+    result.value.accounts = await Promise.all((result.value?.accounts ?? []).map(async entry => ({
+      ...entry,
+      ...await accountCredentialStatus(credentials, entry),
+    })))
+  }
+  if (result?.ok && ['account.create', 'account.delete', 'account.update', 'account.refresh', 'account.reorder'].includes(call.method)) {
+    send({ type: 'changed' })
+  }
+  return result
 }
 
 /**
@@ -187,7 +199,9 @@ async function complete(request, id, signal) {
   const requested = request.responses
     ? responsesMaxOutputTokens(body)
     : body.max_completion_tokens ?? body.max_tokens
-  const maxTokens = typeof requested === 'number' ? normalizeMaxTokens(requested, provider, model) : undefined
+  // 保留客户端的输出预算；不按历史模型名静默压成 64K。
+  // 真正超出上游能力时让其明确报错，而不是替用户减少上下文/输出。
+  const maxTokens = typeof requested === 'number' ? requested : undefined
 
   const convert = request.responses ? toResponsesGenerateOptions : toGenerateOptions
   const options = await convert(

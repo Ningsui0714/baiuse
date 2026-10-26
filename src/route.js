@@ -43,6 +43,8 @@
  *    静默挂到 qoder 面板。上游 dsh L29823 记录了这个坑。
  */
 
+import { modelIdentity, requestedIdentity } from './models.js'
+
 /** 冷却原因 → 冷却秒数。阶梯语义：429 越犯越久，其余按类别固定。 */
 export const COOLDOWN_SECONDS = Object.freeze({
   default: 20,
@@ -268,23 +270,22 @@ export function buildCandidates(modelRows, { model, prioritizeExact = true }) {
   const rows = Array.isArray(modelRows) ? modelRows : []
   const wanted = String(model ?? '').trim()
   if (wanted === '') return []
+  const identity = requestedIdentity(wanted, rows)
 
   const candidates = []
   for (const row of rows) {
     const id = String(row?.id ?? '')
     if (id === '') continue
+    if (modelIdentity(row) !== identity) continue
     const slash = id.indexOf('/')
-    if (slash === -1) {
-      // 裸名（免费线）：直接命中
-      if (id === wanted) candidates.push({ id, provider: row.owned_by ?? 'free', model: id, routeKey: id, priority: 0 })
+    const exact = id === wanted
+    if (slash === -1 || row.lane === 'kilo' || row.owned_by === 'kilo') {
+      candidates.push({ id, provider: row.owned_by ?? 'free', model: id, routeKey: id, priority: exact ? 0 : 1 })
       continue
     }
     const provider = id.slice(0, slash)
     const modelName = id.slice(slash + 1)
-    // 匹配规则：provider/model 全等，或裸模型名与 modelName 相等（跨 provider 同名模型）
-    const exact = id === wanted
-    const bareMatch = modelName === wanted || wanted.endsWith(`/${modelName}`) === false ? modelName === wanted : false
-    if (!exact && !bareMatch) continue
+    // 同一逻辑模型跨渠道、日期后缀合并；旧 provider/model 配置仍可自动切换。
     candidates.push({
       id,
       provider,

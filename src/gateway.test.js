@@ -79,7 +79,7 @@ test('Responses 事件序列符合 Codex 的期待', async () => {
     assert.ok(text.includes('data: [DONE]'), '应以 [DONE] 收尾')
     assert.match(text, /"delta":"你好"/)
     // usage 必须带上下文占用，否则 Codex 算不出占用、自动压缩不触发
-    assert.match(text, /"prompt_tokens":10/)
+    assert.match(text, /"input_tokens":10/)
   } finally {
     await gateway.close()
   }

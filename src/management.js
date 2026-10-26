@@ -41,6 +41,8 @@ import { activateProfile, listProfiles, purgeProviderConfig, removeProfile, rest
 import { listProviderCounts, migrateThreads } from './codex/state-db.mjs'
 import { fetchProviderModels, testProvider } from '../vendor/lanes/aggregate.js'
 import { getProvider, listProviders } from '../vendor/providers/index.js'
+import { listClients, clientPreview, connectClient, restoreClient } from './clients/config.mjs'
+import { requestedIdentity } from './models.js'
 
 /** 管理接口只接受回环来源。 */
 function isLoopbackRequest(req) {
@@ -61,6 +63,7 @@ export function createManagementHandler({ app, apiKey }) {
   // `app` 可能是 getter —— 网关先于 app 句柄建好（app 句柄要拿网关），
   // 所以这里**每次用时才取**，不能在创建时解构成局部常量。
   const getApp = typeof app === 'function' ? app : () => app
+  const clientModels = () => getApp().lanes.clientModelRows?.() ?? getApp().lanes.modelRows()
 
   /**
    * 调渠道包 RPC 并**拆掉它的信封**。
@@ -98,6 +101,8 @@ export function createManagementHandler({ app, apiKey }) {
             nickname: entry.nickname ?? entry.id,
             enabled: entry.enabled !== false,
             refreshable: entry.refreshable === true,
+            authenticated: entry.authenticated === true,
+            credentialState: entry.credentialState ?? 'unknown',
             expiresAt: entry.expiresAt ?? null,
             // 限流信息：模型 → 解禁时刻
             rateLimited: Object.entries(entry.modelRateLimits ?? {})
@@ -397,6 +402,39 @@ export function createManagementHandler({ app, apiKey }) {
     const app = getApp()
     const path = url.pathname
 
+    const clientContext = () => ({ ...app.clientOptions, dataDir: app.dataDir, gatewayUrl: app.url, apiKey: app.apiKey, desktopModel: app.settings.get().desktopModel, desktopActivity: app.gateway?.desktopStatus })
+    const clientRecords = () => listClients(clientContext()).map(client => ({ ...client,
+      logicalModel: client.model ? requestedIdentity(client.model, app.lanes.modelRows()) : '',
+    }))
+    if (path === '/api/clients' && req.method === 'GET') {
+      sendJson(res, 200, { clients: clientRecords() })
+      return true
+    }
+    const clientMatch = /^\/api\/clients\/([a-z-]+)\/(preview|connect|restore)$/.exec(path)
+    if (clientMatch && req.method === 'POST') {
+      const [, id, action] = clientMatch
+      const options = { ...clientContext(), model: body?.model }
+      if (action !== 'restore' && app.lanes.clientModelRows) options.model = requestedIdentity(String(options.model ?? ''), app.lanes.modelRows())
+      if (action !== 'restore' && !clientModels().some(row => row.id === options.model)) {
+        throw Object.assign(new Error('模型已不在可用目录中，请刷新后重新选择'), { status: 400 })
+      }
+      let result
+      if (action === 'preview') result = clientPreview(id, options)
+      else if (action === 'restore') result = restoreClient(id, options)
+      else result = connectClient(id, options)
+      if (id === 'claude-desktop' && action !== 'preview') {
+        app.settings.update({ desktopModel: action === 'connect' ? options.model : '' })
+      }
+      // Secrets are opt-in for copying; normal screen previews are always masked.
+      if (action === 'preview' && body?.reveal !== true) {
+        result.files = result.files.map(file => ({ ...file, content: (app.apiKey ? file.content.replaceAll(app.apiKey, '••••••••') : file.content)
+          .replace(/("[^"\n]*(?:key|token|secret|password)[^"\n]*"\s*:\s*)"[^"\n]*"/gi, '$1"••••••••"')
+          .replace(/^(\s*(?:export\s+)?[\w.-]*(?:key|token|secret|password)[\w.-]*\s*=\s*)(?:"(?:\\.|[^"\n])*"|'[^'\n]*'|[^\s#]+)/gim, '$1"••••••••"') }))
+      }
+      sendJson(res, 200, { ...result, clients: clientRecords() })
+      return true
+    }
+
     // ── 总览 ──────────────────────────────────────────────────────────────
     if (path === '/api/summary' && req.method === 'GET') {
       sendJson(res, 200, {
@@ -409,7 +447,8 @@ export function createManagementHandler({ app, apiKey }) {
           aggregate: app.lanes.aggregateCatalog().length,
         },
         accounts: await listAccounts(),
-        models: app.lanes.modelRows().length,
+        models: clientModels().length,
+        routes: app.lanes.modelRows().length,
       })
       return true
     }
@@ -461,8 +500,14 @@ export function createManagementHandler({ app, apiKey }) {
     }
 
     // ── 模型 ──────────────────────────────────────────────────────────────
+    if (path === '/api/models/refresh' && req.method === 'POST') {
+      await app.channels.refresh()
+      sendJson(res, 200, { models: clientModels() })
+      return true
+    }
+
     if (path === '/api/models' && req.method === 'GET') {
-      sendJson(res, 200, { models: app.lanes.modelRows() })
+      sendJson(res, 200, { models: clientModels() })
       return true
     }
 

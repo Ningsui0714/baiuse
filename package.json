@@ -12,8 +12,9 @@
   "scripts": {
     "start": "node src/cli.js",
     "start:app": "electron .",
-    "test": "node --test src/route.test.js src/failover.test.js src/gateway.test.js src/lanes/protocol.test.js src/lanes/routing.test.js src/management.test.js src/codex/config.test.js src/codex/accounts.test.js src/codex/profiles.test.js",
+    "test": "node --test src/route.test.js src/failover.test.js src/gateway.test.js src/lanes/protocol.test.js src/lanes/routing.test.js src/management.test.js src/codex/config.test.js src/codex/accounts.test.js src/codex/profiles.test.js src/clients/clients.test.mjs src/channels/channels.test.mjs",
     "test:e2e": "node test/e2e.js",
+    "test:ui": "node test/ui-dropdowns.cjs",
     "dist": "electron-builder --mac --dir",
     "dist:all": "electron-builder -mwl"
   },
@@ -56,5 +57,8 @@
       ]
     }
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
+  }
 }
