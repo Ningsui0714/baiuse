@@ -2,7 +2,7 @@
   "name": "baiuse",
   "version": "0.1.0",
   "private": true,
-  "repository": "https://github.com/Ningsui0714/codex-relay.git",
+  "repository": "https://github.com/Ningsui0714/baiuse.git",
   "type": "module",
   "description": "白用 AI · BaiUse：一键白嫖，一键接入。把免费 AI 模型接入 Codex、Claude Code、Gemini CLI 和 OpenCode，同模型额度耗尽自动切换可用渠道。",
   "main": "electron/main.cjs",

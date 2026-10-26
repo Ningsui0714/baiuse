@@ -28,14 +28,14 @@ test('Codex 接入入口统一命名，说明桌面版与 CLI 共用配置', () 
   assert.match(client.note,/桌面版与 CLI 共用配置/)
 })
 
-test('白用 AI · BaiUse 品牌统一，旧命令、仓库地址与应用标识保留兼容', () => {
+test('白用 AI · BaiUse 品牌统一，仓库使用新名称，旧命令与应用标识保留兼容', () => {
   const pkg=readJson(new URL('../../package.json',import.meta.url))
   const html=read(new URL('../../ui/index.html',import.meta.url))
   assert.equal(pkg.name,'baiuse')
   assert.equal(pkg.build.productName,'BaiUse')
   assert.equal(pkg.build.appId,'com.ofm.codex-gateway')
   assert.equal(pkg.bin.baiuse,pkg.bin['codex-relay'])
-  assert.equal(pkg.repository,'https://github.com/Ningsui0714/codex-relay.git')
+  assert.equal(pkg.repository,'https://github.com/Ningsui0714/baiuse.git')
   assert.match(pkg.description,/一键白嫖，一键接入/)
   assert.doesNotMatch(pkg.description,/Kilo/)
   assert.match(html,/<title>白用 AI · BaiUse<\/title>/)

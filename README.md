@@ -43,8 +43,8 @@ OpenCode             ─┘
 ### 启动桌面版
 
 ```bash
-git clone https://github.com/Ningsui0714/codex-relay.git
-cd codex-relay
+git clone https://github.com/Ningsui0714/baiuse.git
+cd baiuse
 npm install
 npm run start:app
 ```
@@ -197,7 +197,7 @@ BaiUse 的本机网关 Key 用于客户端连接本地服务，不是厂商 API 
 - 用 `--data-dir` 或 `OFM_GATEWAY_HOME` 指定其他目录。
 - 数据目录包含网关 Key、渠道凭据及配置备份，不应提交到版本库。
 
-项目已从 Codex Relay 更名为 **白用 AI · BaiUse**，项目标识为 `baiuse`。现有 GitHub 仓库地址继续保留；已有 CLI 命令 `codex-relay`、OpenCode provider ID `codex-relay`、运行时标识 `ofm`、`OFM_API_KEY`、`OFM_GATEWAY_HOME` 和原数据目录继续保留，避免升级后配置失效。
+项目已从 Codex Relay 更名为 **白用 AI · BaiUse**，项目标识为 `baiuse`。GitHub 仓库已更名为 `Ningsui0714/baiuse`；已有 CLI 命令 `codex-relay`、OpenCode provider ID `codex-relay`、运行时标识 `ofm`、`OFM_API_KEY`、`OFM_GATEWAY_HOME` 和原数据目录继续保留，避免升级后配置失效。
 
 普通客户端接入不修改 Codex 官方登录态。高级管理里的「记录当前登录 / 切换账号」是单独操作，会管理 `auth.json`；不要与网关接入混淆。
 
