@@ -45,7 +45,7 @@ import {
 
 /** 我们写入的 provider id —— 同时是「这段配置归我们管」的标记。 */
 export const PROVIDER_ID = 'ofm'
-export const PROVIDER_NAME = 'Codex Relay'
+export const PROVIDER_NAME = 'BaiUse'
 
 /** Codex 的配置目录。 */
 export function resolveCodexDir({ env = process.env, home = os.homedir() } = {}) {

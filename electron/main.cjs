@@ -52,7 +52,7 @@ function createWindow() {
     height: 780,
     minWidth: 860,
     minHeight: 560,
-    title: 'Codex Relay',
+    title: '白用 AI · BaiUse',
     backgroundColor: '#f4f9fd',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
@@ -93,7 +93,7 @@ function createTray() {
   )
   image.setTemplateImage(true)
   tray = new Tray(image)
-  tray.setToolTip('Codex Relay')
+  tray.setToolTip('白用 AI · BaiUse')
   refreshTrayMenu()
   tray.on('click', () => {
     if (mainWindow === null) createWindow()
@@ -117,7 +117,7 @@ function refreshTrayMenu() {
           'model_provider = "ofm"',
           '',
           '[model_providers.ofm]',
-          'name = "Codex Relay"',
+          'name = "BaiUse"',
           `base_url = "${url}/v1"`,
           'wire_api = "responses"',
           'env_key = "OFM_API_KEY"',

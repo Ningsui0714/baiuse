@@ -103,7 +103,7 @@ function plan(id, options) {
     const dir = env.OPENCODE_CONFIG_DIR || path.join(config, 'opencode')
     const file = fs.existsSync(path.join(dir, 'opencode.jsonc')) ? path.join(dir, 'opencode.jsonc') : path.join(dir, 'opencode.json')
     return [json(file, [change('provider.codex-relay', {
-      npm: '@ai-sdk/openai-compatible', name: 'Codex Relay',
+      npm: '@ai-sdk/openai-compatible', name: 'BaiUse',
       options: { baseURL: `${root}/v1`, apiKey }, models: { [model]: { name: model } },
     }), change('model', `codex-relay/${model}`)])]
   }

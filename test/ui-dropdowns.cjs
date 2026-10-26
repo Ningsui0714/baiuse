@@ -47,7 +47,7 @@ app.whenReady().then(async () => {
           writes.push(`${req.method} ${url.pathname}`)
           res.writeHead(405); res.end('{}'); return
         }
-        const preview={files:[{path:'/example/.codex/config.toml',content:'model_provider = "ofm"\nmodel = "deepseek-v4.1-flash"\n\n[model_providers.ofm]\nname = "Codex Relay"\nbase_url = "http://127.0.0.1:48760/v1"\nwire_api = "responses"\nenv_key = "OFM_API_KEY"\n'}]}
+        const preview={files:[{path:'/example/.codex/config.toml',content:'model_provider = "ofm"\nmodel = "deepseek-v4.1-flash"\n\n[model_providers.ofm]\nname = "BaiUse"\nbase_url = "http://127.0.0.1:48760/v1"\nwire_api = "responses"\nenv_key = "OFM_API_KEY"\n'}]}
         preview.files[0].content=preview.files[0].content.replace('127.0.0.1:48760',req.headers.host)
         res.end(JSON.stringify(url.pathname.endsWith('/preview') ? preview : fixtures[url.pathname] ?? {}))
         return
@@ -108,6 +108,9 @@ async function exercise() {
   const choose = (id,value) => el(id+'List').querySelector(`[data-model-value="${value}"]`).click()
   for(let i=0;i<100 && !state.loaded;i++)await tick()
   check(state.loaded && !state.error,`Bootstrap failed: ${state.error}`)
+  check(document.title==='白用 AI · BaiUse' && document.querySelector('.brand-text strong').textContent==='白用 AI','BaiUse browser title and sidebar brand')
+  check(document.querySelector('#tab-overview .welcome-banner h2').textContent==='一键白嫖，一键接入。','Overview leads with one-click positioning')
+  check(!el('stats').textContent.includes('Kilo') && el('stats').textContent.includes('免登录模型'),'Upstream implementation is not the user-facing selling point')
   check(document.querySelectorAll('select,datalist').length===0,'No native dropdowns anywhere')
   for(const id of ['providerSelect','providerFilter','providerFormat','profileWireInput']) {
     check(el(id).type==='hidden' && el(id+'Trigger').type==='button',`${id}: app-owned control mounted`)
@@ -173,6 +176,7 @@ async function exercise() {
   closeProfileDialog();await tick()
   document.querySelector('[data-tab="setup"]').click()
   document.querySelector('[data-client="codex"]').click()
+  check(el('setupBannerTitle').textContent==='一键白嫖，一键接入。','Client hub uses the new brand tagline')
   open('clientModel')
   check(el('clientModelList').textContent.includes('DeepSeek V4.1 Flash'),'Unified model picker still works')
   choose('clientModel','deepseek-v4.1-flash')

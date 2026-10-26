@@ -1,12 +1,13 @@
 {
-  "name": "codex-relay",
+  "name": "baiuse",
   "version": "0.1.0",
   "private": true,
   "repository": "https://github.com/Ningsui0714/codex-relay.git",
   "type": "module",
-  "description": "免费 AI API 接入 Codex CLI：集成 Kilo 免 Key 模型，并支持账号渠道、自备 Key 与故障转移",
+  "description": "白用 AI · BaiUse：一键白嫖，一键接入。把免费 AI 模型接入 Codex、Claude Code、Gemini CLI 和 OpenCode，同模型额度耗尽自动切换可用渠道。",
   "main": "electron/main.cjs",
   "bin": {
+    "baiuse": "./src/cli.js",
     "codex-relay": "./src/cli.js"
   },
   "scripts": {
@@ -27,7 +28,7 @@
   },
   "build": {
     "appId": "com.ofm.codex-gateway",
-    "productName": "Codex Relay",
+    "productName": "BaiUse",
     "files": [
       "src/**/*",
       "vendor/**/*",

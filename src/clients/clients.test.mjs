@@ -28,6 +28,47 @@ test('Codex 接入入口统一命名，说明桌面版与 CLI 共用配置', () 
   assert.match(client.note,/桌面版与 CLI 共用配置/)
 })
 
+test('白用 AI · BaiUse 品牌统一，旧命令、仓库地址与应用标识保留兼容', () => {
+  const pkg=readJson(new URL('../../package.json',import.meta.url))
+  const html=read(new URL('../../ui/index.html',import.meta.url))
+  assert.equal(pkg.name,'baiuse')
+  assert.equal(pkg.build.productName,'BaiUse')
+  assert.equal(pkg.build.appId,'com.ofm.codex-gateway')
+  assert.equal(pkg.bin.baiuse,pkg.bin['codex-relay'])
+  assert.equal(pkg.repository,'https://github.com/Ningsui0714/codex-relay.git')
+  assert.match(pkg.description,/一键白嫖，一键接入/)
+  assert.doesNotMatch(pkg.description,/Kilo/)
+  assert.match(html,/<title>白用 AI · BaiUse<\/title>/)
+  assert.match(html,/<strong>白用 AI<\/strong>/)
+  assert.match(html,/一键白嫖，一键接入。/)
+  assert.doesNotMatch(html,/Codex Relay|本地 AI 网关|Kilo 免费池/)
+  assert.match(read(new URL('../../src/store.js',import.meta.url)),/OFM Codex Gateway/)
+  assert.match(read(new URL('../../electron/main.cjs',import.meta.url)),/title: '白用 AI · BaiUse'/)
+})
+
+test('品牌升级只改供应商显示名，Codex/OpenCode 接入和旧配置仍可还原', t => {
+  const options=fixture(t), config=path.join(options.home,'.codex/config.toml'), auth=path.join(options.home,'.codex/auth.json')
+  const original='model_provider = "ofm"\nmodel = "old/model"\n\n[model_providers.ofm]\nname = "Codex Relay"\nbase_url = "http://127.0.0.1:48760/v1"\nwire_api = "responses"\n'
+  write(config,original);write(auth,'{"fixture":"unchanged-official-login"}')
+  connectClient('codex',options)
+  assert.match(read(config),/name = "BaiUse"/)
+  assert.match(read(config),/model_provider = "ofm"/)
+  assert.equal(read(auth),'{"fixture":"unchanged-official-login"}')
+  restoreClient('codex',options)
+  assert.equal(read(config),original)
+  const file=path.join(options.home,'.config/opencode/opencode.jsonc')
+  const before='// Keep original provider ID\n{"provider":{"codex-relay":{"name":"Codex Relay"},"other":{"name":"Other"}},"model":"codex-relay/old-model"}\n'
+  write(file,before)
+  connectClient('opencode',options)
+  const after=readJson(file)
+  assert.equal(after.provider['codex-relay'].name,'BaiUse')
+  assert.equal(after.model,'codex-relay/demo/model')
+  assert.equal(after.provider.other.name,'Other')
+  assert.equal(Object.keys(after.provider).length,2)
+  restoreClient('opencode',options)
+  assert.equal(read(file),before)
+})
+
 test('Responses 文本/工具有稳定 ID 与完整结束项，渠道用量不是 camelCase 透传', () => {
   const events = []
   const assembler = createResponseAssembler({responseId:'resp-test',model:'codearts/test',createdAt:1,emit:(type,value)=>events.push(structuredClone(value))})

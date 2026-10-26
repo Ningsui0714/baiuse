@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Codex Relay</title>
+<title>白用 AI · BaiUse</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23377df4' d='M5 3l19 13L5 29V18l9-6-9-6z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app/base.css">
 <link rel="stylesheet" href="/app/theme.css">
@@ -14,8 +14,8 @@
     <div class="brand">
       <div class="brand-mark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 3l19 13L5 29V18l9-6-9-6z" fill="currentColor"/><path d="M5 3l9 9-9 6-5-4 7-5z" fill="#91c6ff"/></svg></div>
       <div class="brand-text">
-        <strong>Codex Relay</strong>
-        <span>本地 AI 网关</span>
+        <strong>白用 AI</strong>
+        <span>BaiUse · 一键接入免费 AI</span>
       </div>
     </div>
 
@@ -78,14 +78,14 @@
       <div class="page-head">
         <div>
           <h1>工作空间</h1>
-          <p>让模型与工具，在这里连接。</p>
+          <p>把免费 AI 模型，一键接入你常用的编程工具。</p>
         </div>
         <div class="actions">
           <button class="btn-ghost" id="refreshBtn">刷新</button>
         </div>
       </div>
 
-      <div class="welcome-banner"><div><h2>你的模型，不止一种可能。</h2><p>聚合可用渠道，用一个本地网关连接 AI 编程工具。</p><button class="btn" data-open-setup>连接我的客户端 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-5-5l5 5-5 5"/></svg></button></div><div class="route-art" aria-hidden="true"><svg viewBox="0 0 400 140" fill="none"><path d="M0 28h125c50 0 40 42 90 42h130M0 70h345M0 112h125c50 0 40-42 90-42h130" stroke="#81b6fb" stroke-width="1.5"/><circle cx="30" cy="28" r="5" fill="#5a99ef"/><circle cx="96" cy="70" r="6" fill="#5a99ef"/><circle cx="65" cy="112" r="4" fill="#5a99ef"/></svg><div class="art-mark">↗</div></div></div>
+      <div class="welcome-banner"><div><h2>一键白嫖，一键接入。</h2><p>免费模型接入常用工具，同模型额度耗尽自动换渠道。</p><button class="btn" data-open-setup>一键接入我的客户端 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-5-5l5 5-5 5"/></svg></button></div><div class="route-art" aria-hidden="true"><svg viewBox="0 0 400 140" fill="none"><path d="M0 28h125c50 0 40 42 90 42h130M0 70h345M0 112h125c50 0 40-42 90-42h130" stroke="#81b6fb" stroke-width="1.5"/><circle cx="30" cy="28" r="5" fill="#5a99ef"/><circle cx="96" cy="70" r="6" fill="#5a99ef"/><circle cx="65" cy="112" r="4" fill="#5a99ef"/></svg><div class="art-mark">↗</div></div></div>
       <div class="stats" id="stats"></div>
 
       <div class="overview-grid">
@@ -140,7 +140,7 @@
       <div class="page-head">
         <div>
           <h1>模型</h1>
-          <p>所有车道合并后的模型目录</p>
+          <p>免费来源与自备 Key，共用一个模型目录。</p>
         </div>
       </div>
 
@@ -187,11 +187,11 @@
       <div class="page-head">
         <div>
           <h1>客户端接入</h1>
-          <p>一个网关，连接你习惯的 AI 编程工具。</p>
+          <p>把免费 AI 模型，接到你习惯的编程工具。</p>
         </div>
         <button class="btn-ghost" id="refreshClientsBtn">刷新状态</button>
       </div>
-      <div class="welcome-banner compact"><div><h2 id="setupBannerTitle">让配置，简单一点。</h2><p id="setupBannerDesc">选择客户端，自动备份，随时还原。</p></div><div class="route-art" aria-hidden="true"><svg viewBox="0 0 400 140" fill="none"><path d="M0 28h125c50 0 40 42 90 42h130M0 70h345M0 112h125c50 0 40-42 90-42h130" stroke="#81b6fb" stroke-width="1.5"/><circle cx="30" cy="28" r="5" fill="#5a99ef"/><circle cx="96" cy="70" r="6" fill="#5a99ef"/><circle cx="65" cy="112" r="4" fill="#5a99ef"/></svg><div class="art-mark"><svg viewBox="0 0 32 32" fill="currentColor"><path d="M5 3l19 13L5 29V18l9-6-9-6z"/></svg></div></div></div>
+      <div class="welcome-banner compact"><div><h2 id="setupBannerTitle">一键白嫖，一键接入。</h2><p id="setupBannerDesc">选好模型，一键接入；自动备份，随时还原。</p></div><div class="route-art" aria-hidden="true"><svg viewBox="0 0 400 140" fill="none"><path d="M0 28h125c50 0 40 42 90 42h130M0 70h345M0 112h125c50 0 40-42 90-42h130" stroke="#81b6fb" stroke-width="1.5"/><circle cx="30" cy="28" r="5" fill="#5a99ef"/><circle cx="96" cy="70" r="6" fill="#5a99ef"/><circle cx="65" cy="112" r="4" fill="#5a99ef"/></svg><div class="art-mark"><svg viewBox="0 0 32 32" fill="currentColor"><path d="M5 3l19 13L5 29V18l9-6-9-6z"/></svg></div></div></div>
       <div class="client-tabs" id="clientTabs" role="tablist" aria-label="选择客户端"></div>
       <div class="connection-panel" id="clientPanel" role="tabpanel" aria-live="polite">
         <div class="connection-heading"><div id="clientHeading"></div><span class="connection-status" id="clientStatus">读取配置中</span></div>
@@ -315,7 +315,7 @@
       </div>
     </section>
   </main>
-  <footer class="app-footer"><span><b>Codex Relay</b> <span>连接模型，也连接你的工作流。</span></span><span>本机运行 · Key 仅保存在本地</span></footer>
+  <footer class="app-footer"><span><b>白用 AI · BaiUse</b> <span>一键白嫖，一键接入。</span></span><span>本机运行 · Key 仅保存在本地</span></footer>
   </div>
 </div>
 
@@ -700,7 +700,7 @@ function renderOverview() {
     const items = [
       { n: s.lanes?.channels?.length ?? 0, l: '账号渠道' },
       { n: state.accounts.filter(a => a.authenticated).length, l: '已授权账号' },
-      { n: s.lanes?.kilo ?? 0, l: 'Kilo 模型' },
+      { n: s.lanes?.kilo ?? 0, l: '免登录模型' },
       { n: s.lanes?.aggregate ?? 0, l: '自备 Key 模型' },
       { n: s.models ?? 0, l: '模型总数' },
     ];
@@ -744,8 +744,8 @@ function renderSteps() {
       done: hasAccount,
       title: '登录渠道账号',
       desc: hasAccount
-        ? `已保存 ${authorizedCount} 个账号的凭据，渠道模型与 Kilo 共用接入入口`
-        : state.accounts.length ? '账号记录已保存，但授权尚未完成；完成授权后自动加载渠道模型' : '登录后可用 CodeArts 的 DeepSeek 等渠道模型；不登录也能用 Kilo 免费池',
+        ? `已保存 ${authorizedCount} 个账号的凭据，免费来源与自备 Key 共用接入入口`
+        : state.accounts.length ? '账号记录已保存，但授权尚未完成；完成授权后自动加载渠道模型' : '无需登录也有免费模型；登录渠道账号可加入更多可用额度。',
       goto: 'accounts',
       label: hasAccount ? '管理账号' : '去登录',
     },
@@ -753,8 +753,8 @@ function renderSteps() {
       done: hasModel,
       title: '确认可用模型',
       desc: hasModel
-        ? `当前 ${state.models.length} 个模型可被 Codex 使用`
-        : '还没有可用模型 —— 先登录账号或等待 Kilo 清单就绪',
+        ? `当前 ${state.models.length} 个模型可接入你的编程工具`
+        : '还没有可用模型 —— 等待免费目录加载，或登录渠道账号。',
       goto: 'models',
       label: '查看模型',
     },
@@ -1410,7 +1410,7 @@ function renderSetup() {
     'model_provider = "ofm"',
     '',
     '[model_providers.ofm]',
-    'name = "Codex Relay"',
+    'name = "BaiUse"',
     `base_url = "${url}/v1"`,
     'wire_api = "responses"',
     'env_key = "OFM_API_KEY"',

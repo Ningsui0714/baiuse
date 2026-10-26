@@ -1,19 +1,25 @@
-# Codex Relay
+# 白用 AI · BaiUse
 
-**一个本地网关，连接多个模型来源和你习惯的 AI 编程工具。**
+## 一键白嫖，一键接入。
 
-把渠道账号、自备 API Key 和 Kilo 免费模型池接到一起，再供 Codex、Claude Code、Claude Desktop、Gemini CLI、OpenCode 使用。客户端只需选择模型；同一模型的不同渠道在网关内部合并，可在额度耗尽或可重试故障时自动换路。
+**把免费 AI 模型，一键接入你常用的编程工具。**
 
-![Codex Relay 客户端接入界面](docs/design/client-hub.png)
+白用 AI（BaiUse）帮你把各家的免费模型额度用起来。一键接入 Codex、Claude Code、Gemini CLI 和 OpenCode；同模型额度耗尽，自动切换可用渠道，不用反复改配置、切厂商、重启客户端。Claude Desktop 提供应用内接入引导；自备 Key 也能继续用。
+
+![白用 AI · BaiUse 客户端接入界面](docs/design/client-hub.png)
 
 > 截图使用隔离的演示数据，不包含真实账号、Key 或个人客户端配置。
+
+## 为什么用白用 AI
+
+不用先研究 API 网关和协议转换：选模型、选工具、点接入，先用起来。同一个模型有多个可用来源时，后续换渠道由 BaiUse 处理。
 
 ## 这一版做了什么
 
 - **浅蓝色工作空间**：总览、账号管理、模型目录、自备 Key、客户端接入和设置统一设计。
 - **全部使用应用内下拉框**：渠道、筛选、协议和模型选择均支持搜索、键盘选择、Esc 关闭，不再弹出系统选项菜单。
 - **渠道名称更容易辨认**：显示产品名、已有中文名及所属厂商，例如 `CodeArts 码道 · 华为云`、`TRAE · 字节跳动`。
-- **五类客户端共用模型目录**：账号渠道的 DeepSeek 与 Kilo、自备 Key 模型都可用于客户端接入。
+- **五类客户端共用模型目录**：账号额度、免登录免费模型和自备 Key，都可用于客户端接入。
 - **模型合并与自动换路**：客户端保存稳定模型 ID，不必在每次额度用尽后改厂商配置、重启客户端。
 - **配置可预览、可还原**：首次写入前备份，只调整连接、模型和鉴权相关字段，保留无关设置。
 - **保留完整请求与输出预算**：网关不主动裁剪上下文、不默认施加原有的 32 MB 请求上限，也不再把显式输出预算静默压至 64K；实际能力仍由上游模型决定。
@@ -21,7 +27,7 @@
 ```text
 Codex（桌面版 / CLI） ─┐
 Claude Code          ─┤                      ┌─ 已登录的账号渠道
-Claude Desktop       ─┼─ Codex Relay 本地网关 ─┼─ Kilo 免费模型池
+Claude Desktop       ─┼─ BaiUse 一键接入 ─┼─ 免登录免费模型
 Gemini CLI           ─┤    统一模型 + 自动换路  └─ 自备 Key / 自定义端点
 OpenCode             ─┘
 ```
@@ -45,7 +51,7 @@ npm run start:app
 
 如果从带有 `ELECTRON_RUN_AS_NODE` 的开发终端启动，先清除该变量；macOS / Linux 可用 `env -u ELECTRON_RUN_AS_NODE npm run start:app`。
 
-1. 在「账号管理」登录渠道账号，或在「自备 Key」添加供应商。使用 Kilo 免费池无需先登录渠道账号。
+1. 在「账号管理」登录渠道账号，或在「自备 Key」添加供应商。使用免登录免费模型无需先登录渠道账号。
 2. 到「模型目录」确认可用模型。目录会异步加载；完成授权后，新渠道模型自动加入。
 3. 打开「客户端接入」，选择客户端和模型，查看配置预览。
 4. Codex、Claude Code、Gemini CLI、OpenCode 点击「一键接入」后重启相应客户端；Claude Desktop 按下方的应用内流程接入。
@@ -81,10 +87,10 @@ node src/cli.js --help
 
 Claude Desktop 的第三方推理配置与 Claude Code CLI 的 `settings.json` 不是同一套配置。
 
-1. 在 Relay 中选 **Claude Desktop** 和模型，点击 **准备接入参数**。
+1. 在 BaiUse 中选 **Claude Desktop** 和模型，点击 **准备接入参数**。
 2. 在 Claude Desktop 中打开 **Help → Troubleshooting → Enable Developer Mode**，按提示重启。
 3. 打开 **Developer → Configure Third-Party Inference**，选择 **Gateway**。
-4. 复制 Relay 提供的 Gateway 地址、本机 Key、模型 ID；选择 **Static API key / Bearer**。
+4. 复制 BaiUse 提供的 Gateway 地址、本机 Key、模型 ID；选择 **Static API key / Bearer**。
 5. 在桌面应用内测试连接、应用设置，并按提示重启。安装版本和组织策略可能影响入口。
 
 Gateway 地址是实际网关地址加 `/claude-desktop`，不要额外追加 `/v1`。桌面可识别别名 `claude-sonnet-4-5` 会映射到选定的真实模型；别名不表示上游模型就是 Claude。
@@ -100,7 +106,7 @@ model_provider = "ofm"
 model = "deepseek-v4.1-flash" # 换成当前模型目录中实际存在的 ID
 
 [model_providers.ofm]
-name = "Codex Relay"
+name = "BaiUse"
 base_url = "http://127.0.0.1:48760/v1"
 wire_api = "responses"
 env_key = "OFM_API_KEY"
@@ -108,7 +114,7 @@ env_key = "OFM_API_KEY"
 
 运行 CLI 的终端需设置 `OFM_API_KEY` 为本机网关 Key；端口不同则同步修改地址。桌面版推荐直接使用界面「一键接入」，避免遗漏鉴权配置。
 
-「Codex 高级管理」中的第三方直连档案会绕过 Relay；需要自动换路时应使用本机网关，而非某一家直连档案。
+「Codex 高级管理」中的第三方直连档案会绕过 BaiUse；需要自动换路时应使用本机网关，而非某一家直连档案。
 
 ## 同一模型，不再按厂商分开选
 
@@ -151,17 +157,17 @@ trae/DeepSeek V4.1 Flash 1017    ├─ deepseek-v4.1-flash
 
 名称映射和来源见 [渠道名称说明](docs/design/channel-labels.md)。不硬造没有官方中文名的产品译名；未来未知渠道保留原始标识。账号渠道是否显示、能否登录，以运行时实际启用情况为准。
 
-上游 Gemini 账号登录需自行配置 `CMDC_PAK_GOOGLE_CLIENT_ID` / `CMDC_PAK_GOOGLE_CLIENT_SECRET`；Loomy 微信登录需 `CMDC_PAK_LOOMY_WECHAT_APP_ID`。仓库不内置这几项共享 OAuth 配置。这与 **Gemini CLI 作为下游客户端接入 Relay** 是两件事，后者不需要上游 Google OAuth 客户端配置。
+上游 Gemini 账号登录需自行配置 `CMDC_PAK_GOOGLE_CLIENT_ID` / `CMDC_PAK_GOOGLE_CLIENT_SECRET`；Loomy 微信登录需 `CMDC_PAK_LOOMY_WECHAT_APP_ID`。仓库不内置这几项共享 OAuth 配置。这与 **Gemini CLI 作为下游客户端接入 BaiUse** 是两件事，后者不需要上游 Google OAuth 客户端配置。
 
 ## 免费来源与用量
 
 | 来源 | 需要什么 | 用量由谁决定 |
 | --- | --- | --- |
-| Kilo 免费池 | 无需 Kilo 账号或上游 Key | 仅使用上游标记为免费的模型；限流与可用性由上游决定 |
+| 免登录免费模型 | 无需上游账号或 Key | 当前由 Kilo 免费池提供，仅使用上游标记为免费的模型；限流与可用性由上游决定 |
 | 账号渠道 | 登录自己的渠道账号 | 对应账号的免费额度、套餐与服务规则 |
 | 自备 Key | 自己的厂商 Key 或兼容端点 | 对应供应商计费与配额 |
 
-Relay 的本机网关 Key 用于客户端连接本地服务，不是厂商 API Key。免费池不等于无限额度；对话会发送给所选上游，Kilo 免费池可能记录提示词用于改进服务。
+BaiUse 的本机网关 Key 用于客户端连接本地服务，不是厂商 API Key。免费池不等于无限额度；对话会发送给所选上游，Kilo 免费池可能记录提示词用于改进服务。
 
 网关保留完整输入、工具结果和显式输出预算；真正达到上游输出长度限制时返回截断状态，不伪装成完整回答。令牌估算接口采用本地启发式估算，并通过 `x-relay-token-count: estimated` 标注，不作为上游计费依据。
 
@@ -191,7 +197,7 @@ Relay 的本机网关 Key 用于客户端连接本地服务，不是厂商 API K
 - 用 `--data-dir` 或 `OFM_GATEWAY_HOME` 指定其他目录。
 - 数据目录包含网关 Key、渠道凭据及配置备份，不应提交到版本库。
 
-项目公开名为 Codex Relay，已有运行时标识 `ofm`、`OFM_API_KEY`、`OFM_GATEWAY_HOME` 和原数据目录继续保留，避免升级后配置失效。
+项目已从 Codex Relay 更名为 **白用 AI · BaiUse**，项目标识为 `baiuse`。现有 GitHub 仓库地址继续保留；已有 CLI 命令 `codex-relay`、OpenCode provider ID `codex-relay`、运行时标识 `ofm`、`OFM_API_KEY`、`OFM_GATEWAY_HOME` 和原数据目录继续保留，避免升级后配置失效。
 
 普通客户端接入不修改 Codex 官方登录态。高级管理里的「记录当前登录 / 切换账号」是单独操作，会管理 `auth.json`；不要与网关接入混淆。
 
@@ -207,7 +213,7 @@ npm run dist:all # 多平台打包，取决于本机工具链
 
 本版验证（2026-10-26）：
 
-- **208 项单元 / 集成测试通过，52 项 Electron 下拉与页面检查通过。**
+- **210 项单元 / 集成测试通过，56 项 Electron 下拉与页面检查通过。**
 - 真实 CodeArts / DeepSeek 对话、Responses SSE、Messages、Chat、Gemini 接口已验证；真实 Codex CLI 文本和终端工具闭环通过。
 - 多厂商配额切换通过本地 CodeArts → TRAE 夹具验证，覆盖五类协议；不宣称已使用未授权的真实 TRAE 账号。
 - Claude Code、Gemini CLI、OpenCode 已验证配置和协议层；尚未声称完成这些原生进程及 Claude Desktop 应用内的完整对话验收。

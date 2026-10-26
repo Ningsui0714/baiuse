@@ -42,8 +42,8 @@
     const client = clients.find(c => c.id === selected);
     const record = records.find(c => c.id === selected);
     const desktop = selected === 'claude-desktop';
-    $hub('setupBannerTitle').textContent = desktop ? '桌面接入，在应用内完成。' : '让配置，简单一点。';
-    $hub('setupBannerDesc').textContent = desktop ? '这里准备连接参数；在 Claude Desktop 中测试并应用。' : '选择客户端，自动备份，随时还原。';
+    $hub('setupBannerTitle').textContent = desktop ? '桌面接入，在应用内完成。' : '一键白嫖，一键接入。';
+    $hub('setupBannerDesc').textContent = desktop ? '这里准备连接参数；在 Claude Desktop 中测试并应用。' : '选好模型，一键接入；自动备份，随时还原。';
     $hub('clientTabs').innerHTML = clients.map(c => `<button type="button" role="tab" id="client-tab-${c.id}" aria-controls="clientPanel" aria-selected="${selected === c.id}" tabindex="${selected === c.id ? '0' : '-1'}" class="client-tab${selected === c.id ? ' selected' : ''}" data-client="${c.id}">${icon(c)}<span>${c.name}</span></button>`).join('');
     $hub('clientPanel').setAttribute('aria-labelledby', `client-tab-${selected}`);
     $hub('clientHeading').innerHTML = `${icon(client)}<h2>${client.name}<small>/ ${client.kind}</small></h2>`;

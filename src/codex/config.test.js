@@ -103,7 +103,7 @@ test('接管只改 model_provider / model / 我们自己的段，其余原样保
   assert.match(after, /^model_provider = "ofm"$/m)
   assert.match(after, /^model = "trae\/glm-5"$/m)
   assert.match(after, /\[model_providers\.ofm\]/)
-  assert.match(after, /name = "Codex Relay"/)
+  assert.match(after, /name = "BaiUse"/)
   assert.match(after, /base_url = "http:\/\/127\.0\.0\.1:48760\/v1"/)
   assert.match(after, /wire_api = "responses"/)
   assert.match(after, /experimental_bearer_token = "ofm-test-key"/)

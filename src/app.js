@@ -70,7 +70,7 @@ export async function startApp({ dataDir = resolveDataDir(), port, host = '127.0
     }
   })()
 
-  logger.log?.(`Codex Relay 已启动：${gateway.url}`)
+  logger.log?.(`白用 AI · BaiUse 已启动：${gateway.url}`)
   logger.log?.(`API Key：${settings.get().apiKey}`)
 
   const app = {

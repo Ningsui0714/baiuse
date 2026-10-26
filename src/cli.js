@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Codex Relay 命令行入口。
+ * BaiUse 命令行入口。
  *
  * 用法：
  *   node src/cli.js                      # 用默认目录与端口
@@ -12,7 +12,7 @@
 import { startApp } from './app.js'
 import { resolveDataDir } from './store.js'
 
-const usage = `Codex Relay —— 给 Codex CLI 用的多渠道聚合本地网关
+const usage = `白用 AI · BaiUse —— 一键白嫖，一键接入。
 
 用法：node src/cli.js [选项]
 
@@ -60,7 +60,7 @@ function printRecipe(url, apiKey) {
     'model_provider = "ofm"',
     '',
     '[model_providers.ofm]',
-    'name = "Codex Relay"',
+    'name = "BaiUse"',
     `base_url = "${url}/v1"`,
     'wire_api = "responses"',
     'env_key = "OFM_API_KEY"',

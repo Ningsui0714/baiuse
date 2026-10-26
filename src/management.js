@@ -373,7 +373,7 @@ export function createManagementHandler({ app, apiKey }) {
       'model_provider = "ofm"',
       '',
       '[model_providers.ofm]',
-      'name = "Codex Relay"',
+      'name = "BaiUse"',
       `base_url = "${app.url}/v1"`,
       'wire_api = "responses"',
       'env_key = "OFM_API_KEY"',

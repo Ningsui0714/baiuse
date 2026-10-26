@@ -1,5 +1,7 @@
 # 原生客户端接入与验证边界
 
+产品名为 **白用 AI · BaiUse**，主标语为「一键白嫖，一键接入。」。品牌升级只调整显示名，不迁移用户数据目录、覆盖已有客户端配置或改变原始渠道 ID。旧 `codex-relay` 命令及 OpenCode provider ID、Codex `ofm` provider ID 继续兼容；新增 CLI 别名 `baiuse`。
+
 核对日期：2026-10-26。界面与协议实现均在当前仓库内，不需要安装 CC Switch。
 
 ## 设计依据
